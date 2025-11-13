@@ -1,10 +1,7 @@
-![Project Logo](morphodiff_logo.png)
+![Project Logo](morphodiff_logo.png) 
 
 
-
-This is the official repository of MorphoDiff, a diffusion based generative pipeline to predict high-resolution cell morphological responses under different conditions based on perturbation encoding.  MorphoDiff is capable of producing guided, high-resolution predictions of cell morphology that generalize across both chemical and genetic interventions.
-
-Link to the ICLR published paper: https://openreview.net/pdf?id=PstM8YfhvI
+This is the official repository of CapillaDiff, a diffusion based generative pipeline to predict high-resolution capillaroscopy images with different conditions.
 
 ---
 
@@ -46,6 +43,7 @@ CapillaDiff uses **text embeddings** to condition image generation. If you want 
 
 ## Recommended folder structure
 
+```bash
 CapillaDiff/
 ├── capilladiff/
 ├── LICENSE
@@ -56,7 +54,7 @@ models/
 ├── stable-diffusion-v1-4/
 ├── capilladiff_checkpoint/
 └── clip-vit-large-patch14/
-
+```
 ## Codebase overview [TO BE DONE]
 
 ```bash
