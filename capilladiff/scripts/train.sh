@@ -32,23 +32,25 @@ trap 'handler' SIGUSR1
 # export CC=/usr/bin/gcc-9
 # export CXX=/usr/bin/g++-9
 
-echo $(nvcc --version)$
-echo which nvcc: $(which nvcc)
+# echo $(nvcc --version)$
+# echo which nvcc: $(which nvcc)
 
 # Echo the path to the Python interpreter
-echo "Using Python from: $(which python)"
+echo "$(python -V 2>&1)"
 echo "CUDA is available: $(python -c 'import torch; print(torch.cuda.is_available())')"
 
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+echo "Script directory: $SCRIPT_DIR"
 
 ## Fixed parameters ##
 export CKPT_NUMBER=0
 export TRAINED_STEPS=0
 
 ## set "conditional" for training MorphoDiff, and "naive" for training Stable Diffuison
-export SD_TYPE="conditional"
+export SD_TYPE="naive"
 
 ## set the path to the pretrained VAE model. Downloaded from: https://huggingface.co/CompVis/stable-diffusion-v1-4 
-export VAE_DIR="/stable-diffusion-v1-4"
+export VAE_DIR="../../../stable-diffusion-v1-4"
 
 ## set the path to the log directory
 export LOG_DIR="model/log/"
@@ -58,10 +60,10 @@ if [ ! -d "$LOG_DIR" ]; then
 fi
 
 ## set the experiment name
-export EXPERIMENT="BBBC021"
+export EXPERIMENT="first_test_run"
 
 ## set the path to the pretrained model, which could be either pretrained Stable Diffusion, or a pretrained MorphoDiff model
-export MODEL_NAME="/stable-diffusion-v1-4"
+export MODEL_NAME="../../../stable-diffusion-v1-4"
 
 ## set the path to the training data directory. Folder contents must follow the structure described in"
 ## " https://huggingface.co/docs/datasets/image_dataset#imagefolder. In particular, a `metadata.jsonl` file"

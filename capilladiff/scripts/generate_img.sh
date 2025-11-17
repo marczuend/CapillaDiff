@@ -16,21 +16,33 @@ scontrol requeue $SLURM_JOB_ID
 }
 trap 'handler' SIGUSR1
 
+# Ensure script uses its own directory as working directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 ## Load the environment
 # source /home/env/morphodiff/bin/activate
 
 ## Define/adjust the parameters ##
 ## Set the experiment name
-EXPERIMENT="BBBC021_14_compounds"
+EXPERIMENT="second_test"
 ## CKPT_PATH is the path to the checkpoint folder. 
 ## you can download pretrained checkpoints from https://huggingface.co/navidi/MorphoDiff_checkpoints/tree/main, 
 ## or from https://huggingface.co/CompVis/stable-diffusion-v1-4 if you want to train from scratch
-CKPT_PATH="/model/BBBC021-MorphoDiff/checkpoint-0"
+CKPT_PATH="../../../model/bbbc021_morphodiff_ckpt/checkpoint/"
 ## Set path to the directory where you want to save the generated images
-GEN_IMG_PATH="/datasets/${EXPERIMENT}/generated_imgs/"
+GEN_IMG_PATH="../../../generated_imgs/${EXPERIMENT}/"
+
+# check if dictory is writable
+DIR=$(dirname "$GEN_IMG_PATH")
+if [ ! -w "$DIR" ]; then
+  echo "Directory $DIR is not writable. Using home directory instead."
+  GEN_IMG_PATH="/cluster/home/mazuend/CapillaDiff/generated_imgs/${EXPERIMENT}/"
+  echo "New GEN_IMG_PATH: $GEN_IMG_PATH"
+fi
+
 ## Set the number of images you want to generate
-NUM_GEN_IMG=500
+NUM_GEN_IMG=5
 ## Set the out-of-distribution (OOD) status of the generated images
 OOD=False
 MODEL_NAME="SD" # this is fixed for Stable Diffusion and MorphoDiff
@@ -39,8 +51,7 @@ MODEL_TYPE="conditional" # set "conditional" for MorphoDiff, and "naive" for unc
 ## The PERTURBATION_LIST_PATH variable should be the address of a .csv file with the following columns: perturbation, ood (including header)
 ## sample file can be found in morphodiff/required_file/BBBC021_14_compounds_pert_ood_info.csv for the BBBC021 experiment sample, and
 ## morphodiff/required_file/HUVEC_single_batch_pert_ood_info.csv for the HUVEC experiment sample
-PERTURBATION_LIST_PATH="../required_file/${EXPERIMENT}_pert_ood_info.csv" 
-
+PERTURBATION_LIST_PATH="../required_file/BBBC021_14_compounds_pert_ood_info.csv" 
 
 ## Generate images
 python ../evaluation/generate_img.py \

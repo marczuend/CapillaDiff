@@ -211,6 +211,8 @@ class PerturbationEncoderInference:
         if self.model_name == 'SD':
 
             if self.model_type == 'conditional':
+                print("model_type is conditional")
+                print("Getting embedding for identifier: ", identifier)
 
                 if 'HUVEC' in self.dataset_id:
                     embedding = self.get_embedding_for_rxrx1(identifier)

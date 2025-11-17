@@ -65,7 +65,24 @@ class CustomStableDiffusionPipeline(StableDiffusionPipeline):
         lora_scale: Optional[float] = None,
         clip_skip: Optional[int] = None,
     ):
-        embeddings = self.custom_text_encoder(prompt)
+        #embeddings = self.custom_text_encoder(prompt)
+        embeddings = torch.ones(
+                    (1, 77, 768))  # dummy embedding
+
+        if False:
+            from transformers import CLIPTokenizer, CLIPTextModel
+
+            print("Using CLIP text encoder for embeddings...")
+            path_clip ="/cluster/customapps/medinfmk/mazuend/CapillaDiff/clip_model"
+            print("path: "+path_clip)
+
+            tokenizer = CLIPTokenizer.from_pretrained(path_clip+"/clip_tokenizer", local_files_only=True)
+            text_encoder = CLIPTextModel.from_pretrained(path_clip+"/clip_text_encoder", local_files_only=True)
+
+            text = "a microscope image of cells"
+            tokens = tokenizer(text, return_tensors="pt", padding="max_length", truncation=True, max_length=77)
+            embeddings = text_encoder(**tokens).last_hidden_state  # shape (1, 77, 768)
+
         embeddings = embeddings.to(device)
 
         return embeddings, None
@@ -173,6 +190,8 @@ if __name__ == '__main__':
                         help="cluster")
     parser.add_argument('--model_name', default='SD',
                         help="model type")
+    parser.add_argument('--clip_path', default='',
+                        help="path to CLIP model")
     args = parser.parse_args()
     args.num_imgs = int(args.num_imgs)
 
