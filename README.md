@@ -78,7 +78,8 @@ sbatch scripts/train.sh
 
 After the training is completed for the specified number of steps, the `scripts/train.sh` automatically resubmits the job and resumes training from the last checkpoint. You can set the total_steps parameter to not train more than a specific number of steps, or comment the `scontrol requeue $SLURM_JOB_ID` line that resubmits the job once it is finished.
 
-## Data Preparation  (TO BE DONE)
+## Data Preparation
+### TO BE DONE!!!!!
 
 Data folder contents must follow the structure described in [https://huggingface.co/docs/datasets/image_dataset#imagefolder](https://huggingface.co/docs/datasets/image_dataset#imagefolder). In particular, a `metadata.jsonl` file must exist to provide the perturbation id for the images. The perturbation ids used in CapillaDiff analysis are provided in the required_file/ folder.
 
