@@ -1,80 +1,88 @@
 #!/bin/bash
-# Node resource configurations
-#SBATCH --gpus-per-node=1
-#SBATCH --cpus-per-task=6
-#SBATCH --mem=64G
-#SBATCH --ntasks=1
-#SBATCH --time=4:00:00
-#SBATCH --job-name=train
-#SBATCH --error=out_dir/%x-%j.err
-#SBATCH --output=out_dir/%x-%j.out
-#SBATCH --requeue
-#SBATCH --signal=B:USR1@60
 
-handler()
-{
-echo "function handler called at $(date)"
-scontrol requeue $SLURM_JOB_ID
-}
-trap 'handler' SIGUSR1
+# Start job or create JSON file
+# 1: start training job
+# 0: print JSON file for debugging in VSCode
+START_OR_PRINT_JSON=1
 
-## activate the environment
-# source /home/env/morphodiff/bin/activate
+##################################################################################
+# TRAINING PARAMETERS #
 
-## load necessary modules
-# module load cuda-12.4
-# export CUDA_HOME=$(dirname $(dirname $(which nvcc)))
-# export PATH=$CUDA_HOME/bin:$PATH
-# export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+BATCH_SIZE=4
+GRADIENT_ACCUMULATION_STEPS=1
+LEARNING_RATE=1e-05
+MAX_TRAIN_STEPS=50         # 500
+VALIDATION_EPOCHS=25        # 100
+CHECKPOINTING_STEPS=25      # 100
+MIXED_PRECISION="fp16"  # set to "fp16" or "bf16" for mixed precision training. Set to "no" for full precision training
 
-# Update the environment variables if needed
-# export CFLAGS='-std=c++11'
-# export CC=/usr/bin/gcc-9
-# export CXX=/usr/bin/g++-9
+##################################################################################
+############ NEEDED VARIABLES TO SET BEFORE RUNNING THE SCRIPT  ##################
+##################################################################################
 
-# echo $(nvcc --version)$
-# echo which nvcc: $(which nvcc)
+## set the experiment name
+export EXPERIMENT="3d_test_run"
 
-# Echo the path to the Python interpreter
-echo "$(python -V 2>&1)"
-echo "CUDA is available: $(python -c 'import torch; print(torch.cuda.is_available())')"
+## set "conditional" for training CapillaDiff, and "naive" for training Stable Diffuison
+export SD_TYPE="naive"
 
-SCRIPT_DIR="$(dirname "$(realpath "$0")")"
-echo "Script directory: $SCRIPT_DIR"
+## set the path to the training data directory. Folder contents must follow the structure described in
+## https://github.com/marczuend/CapillaDiff/blob/main/README.md#data-preparation
+export IMG_DIR="/cluster/customapps/medinfmk/mazuend/CapillaDiff/pseudo_data/images"
+export METADATA_DIR="/cluster/customapps/medinfmk/mazuend/CapillaDiff/pseudo_data/metadata.csv"
+
+## set the path to the pretrained model, which could be either pretrained Stable Diffusion, or a pretrained CapillaDiff model
+export MODEL_NAME="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/bbbc021_morphodiff_ckpt/checkpoint"
+
+## set the path to the pretrained VAE model. Downloaded from: https://huggingface.co/CompVis/stable-diffusion-v1-4
+export VAE_DIR="$MODEL_NAME/vae"
 
 ## Fixed parameters ##
 export CKPT_NUMBER=0
 export TRAINED_STEPS=0
 
-## set "conditional" for training MorphoDiff, and "naive" for training Stable Diffuison
-export SD_TYPE="naive"
+##################################################################################
+######################### END OF VARIABLE SETTINGS ###############################
+##################################################################################
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 
-## set the path to the pretrained VAE model. Downloaded from: https://huggingface.co/CompVis/stable-diffusion-v1-4 
-export VAE_DIR="../../../stable-diffusion-v1-4"
+# Go to home directory
+cd ~
+
+# CapillaDiff main directory
+if [ ! -d "CapillaDiff" ]; then
+    mkdir CapillaDiff
+    echo "Created CapillaDiff directory"
+fi
+export CAPILLADIFF_DIR="$(realpath ./CapillaDiff)"
+cd "$CAPILLADIFF_DIR"
+
+# Temporary/cache directory
+if [ ! -d "$CAPILLADIFF_DIR/capilladiff/tmp" ]; then
+    mkdir -p "$CAPILLADIFF_DIR/capilladiff/tmp"
+    echo "Created tmp directory for training/cache"
+fi
+export TMPDIR="$(realpath "$CAPILLADIFF_DIR/capilladiff/tmp")"
+
+# Checkpoint directory
+if [ ! -d "$CAPILLADIFF_DIR/checkpoint" ]; then
+    mkdir -p "$CAPILLADIFF_DIR/checkpoint"
+    echo "Created checkpoint directory"
+fi
+export CHECKPOINT_DIR="$(realpath "$CAPILLADIFF_DIR/checkpoint")"
+export OUTPUT_DIR="$CHECKPOINT_DIR/${EXPERIMENT}-CapillaDiff"
+
 
 ## set the path to the log directory
-export LOG_DIR="model/log/"
+export LOG_DIR="$TMPDIR/log/"
 ## check if LOG_DIR exists, if not create it
 if [ ! -d "$LOG_DIR" ]; then
   mkdir -p $LOG_DIR
 fi
 
-## set the experiment name
-export EXPERIMENT="first_test_run"
 
-## set the path to the pretrained model, which could be either pretrained Stable Diffusion, or a pretrained MorphoDiff model
-export MODEL_NAME="../../../stable-diffusion-v1-4"
-
-## set the path to the training data directory. Folder contents must follow the structure described in"
-## " https://huggingface.co/docs/datasets/image_dataset#imagefolder. In particular, a `metadata.jsonl` file"
-## " must exist to provide the captions for the images. Ignored if `dataset_name` is specified.
-export TRAIN_DIR="/datasets/BBBC021/train_imgs/"
-
-## set the path to the checkpointing log file in .csv format. Should change the MorphoDiff to SD if training unconditional Stable Diffusion 
-export CKPT_LOG_FILE="${LOG_DIR}${EXPERIMENT}_log/${EXPERIMENT}_MorphoDiff_checkpoints.csv"
-
-## set the validation prompts/perturbation ids, separated by ,
-export VALID_PROMPT="cytochalasin-d,docetaxel,epothilone-b"
+## set the path to the checkpointing log file in .csv format. Should change the CapillaDiff to SD if training unconditional Stable Diffusion 
+export CKPT_LOG_FILE="${LOG_DIR}${EXPERIMENT}_log/${EXPERIMENT}_CapillaDiff_checkpoints.csv"
 
 ## the header for the checkpointing log file
 export HEADER="dataset_id,log_dir,pretrained_model_dir,checkpoint_dir,seed,trained_steps,checkpoint_number"
@@ -122,52 +130,116 @@ else
 
 fi
 
+## check if CUDA is available
+is_CUDA_AVAILABLE=$(python -c 'import torch; print(torch.cuda.is_available())')
+
+echo "================= Setup Info =================================="
+printf "%-20s : %s\n" "Experiment name" "$EXPERIMENT"
+printf "%-20s : %s\n" "SD Type" "$SD_TYPE"
+printf "%-20s : %s\n" "Image dir" "$IMG_DIR"
+printf "%-20s : %s\n" "Metadata file" "$METADATA_DIR"
+printf "%-20s : %s\n" "CUDA available" "$is_CUDA_AVAILABLE"
+printf "%-20s : %s\n" "Python version" "$(python -V 2>&1)"
+echo "================= Model Info ==================================="
+printf "%-20s : %s\n" "Model directory" "$MODEL_NAME"
+#printf "%-20s : %s\n" "Checkpoint number" "$CKPT_NUMBER"
+#printf "%-20s : %s\n" "Trained steps" "$TRAINED_STEPS"
+printf "%-20s : %s\n" "VAE model dir" "$VAE_DIR"
+printf "%-20s : %s\n" "Checkpoint directory" "$OUTPUT_DIR"
+printf "%-20s : %s\n" "Log directory" "$LOG_DIR"
+echo "================= TRAINING INFO ==============================="
+printf "%-30s : %s\n" "Batch size" "$BATCH_SIZE"
+printf "%-30s : %s\n" "Learning rate" "$LEARNING_RATE"
+printf "%-30s : %s\n" "Max training steps" "$MAX_TRAIN_STEPS"
+printf "%-30s : %s\n" "Validation epochs" "$VALIDATION_EPOCHS"
+printf "%-30s : %s\n" "Checkpointing steps" "$CHECKPOINTING_STEPS"
+echo "=============================================================="
+
 # add 1 to the value of CKPT_NUMBER
 export CKPT_NUMBER=$((${CKPT_NUMBER}+1))
-export OUTPUT_DIR="/checkpoint/${USER}/${SLURM_JOB_ID}/${EXPERIMENT}-MorphoDiff"
 
-echo "Checkpoint number: $CKPT_NUMBER"
-echo "Model directory: $MODEL_NAME"
-echo "Output directory: $OUTPUT_DIR"
-echo "Data directory: $TRAIN_DIR"
-echo "Trained steps: $TRAINED_STEPS"
+#################### START OLD MORPHODIFF ARGUMENTS ####################
 
+## set the validation prompts/perturbation ids, separated by ,
+#export VALID_PROMPT="cytochalasin-d,docetaxel,epothilone-b"
 
-accelerate launch --mixed_precision="fp16" ../train.py \
-  --pretrained_model_name_or_path=$MODEL_NAME \
-  --naive_conditional=$SD_TYPE \
-  --train_data_dir=$TRAIN_DIR \
-  --dataset_id=$EXPERIMENT \
-  --enable_xformers_memory_efficient_attention \
-  --resolution=512 \
-  --random_flip \
-  --use_ema \
-  --train_batch_size=32 \
-  --gradient_accumulation_steps=4 \
-  --gradient_checkpointing \
-  --max_train_steps=500 \
-  --learning_rate=1e-05 \
-  --lr_scheduler="constant" \
-  --lr_warmup_steps=0 \
-  --validation_epochs=100 \
-  --validation_prompts=$VALID_PROMPT  \
-  --checkpointing_steps=100 \
-  --output_dir=$OUTPUT_DIR \
-  --image_column="image" \
-  --caption_column='additional_feature' \
-  --pretrained_vae_path=$VAE_DIR \
-  --cache_dir="/tmp/" \
-  --report_to="wandb" \
-  --logging_dir="${LOG_DIR}${EXPERIMENT}_log" \
-  --seed=42 \
-  --checkpointing_log_file=$CKPT_LOG_FILE \
-  --checkpoint_number=$CKPT_NUMBER \
-  --trained_steps=$TRAINED_STEPS
+#################### END OLD MORPHODIFF ARGUMENTS ######################
 
+if [ $START_OR_PRINT_JSON -eq 1 ]; then
 
-## uncommet below lines if want to requeue the job and resume training from previous checkpoints saved in the $CKPT_LOG_FILE
-# echo `date`: Job $SLURM_JOB_ID finished running
-# scontrol requeue $SLURM_JOB_ID
-# echo `date`: Job $SLURM_JOB_ID reallocated resource
+  echo "Starting training... train.py script launched via accelerate"
+  echo "=============================================================="
+    
+  accelerate launch --mixed_precision=$MIXED_PRECISION $SCRIPT_DIR/../train.py \
+    --pretrained_model_name_or_path=$MODEL_NAME \
+    --naive_conditional=$SD_TYPE \
+    --img_data_dir=$IMG_DIR \
+    --metadata_file_path=$METADATA_DIR \
+    --dataset_id=$EXPERIMENT \
+    --enable_xformers_memory_efficient_attention \
+    --resolution=512 \
+    --use_ema \
+    --train_batch_size=$BATCH_SIZE \
+    --gradient_accumulation_steps=$GRADIENT_ACCUMULATION_STEPS \
+    --gradient_checkpointing \
+    --max_train_steps=$MAX_TRAIN_STEPS \
+    --learning_rate=$LEARNING_RATE \
+    --lr_scheduler="constant" \
+    --lr_warmup_steps=0 \
+    --validation_epochs=$VALIDATION_EPOCHS \
+    --validation_prompts=$VALID_PROMPT  \
+    --checkpointing_steps=$CHECKPOINTING_STEPS \
+    --output_dir=$OUTPUT_DIR \
+    --image_column="image" \
+    --pretrained_vae_path=$VAE_DIR \
+    --cache_dir=$TMPDIR \
+    --report_to="wandb" \
+    --seed=42 \
+    --checkpointing_log_file=$CKPT_LOG_FILE \
+    --checkpoint_number=$CKPT_NUMBER \
+    --trained_steps=$TRAINED_STEPS
 
+  exit
 
+      # --random_flip \
+      #--caption_column='additional_feature' \
+      #--logging_dir="${LOG_DIR}${EXPERIMENT}_log" \
+      
+fi  
+
+cat <<EOF
+############## for launch.json ##############
+            "args": [
+                "--pretrained_model_name_or_path", "$MODEL_NAME",
+                "--naive_conditional", "$SD_TYPE",
+                // "--train_data_dir", "/cluster/customapps/medinfmk/mazuend/CapillaDiff/pseudo_data/images",
+                "--img_data_dir", "$IMG_DIR",
+                "--metadata_file_path", "$METADATA_DIR",
+                "--dataset_id", "$EXPERIMENT",
+                // "--enable_xformers_memory_efficient_attention", // enable for gpu training
+                "--resolution", "512",
+                "--random_flip",
+                "--use_ema",
+                "--train_batch_size", "$BATCH_SIZE",                 // tiny batch for debugging
+                "--gradient_accumulation_steps", "$GRADIENT_ACCUMULATION_STEPS",
+                "--gradient_checkpointing",
+                "--max_train_steps", "$MAX_TRAIN_STEPS",             // small number of steps for debug
+                "--learning_rate", "$LEARNING_RATE",
+                "--lr_scheduler", "constant",
+                "--lr_warmup_steps", "0",
+                "--validation_epochs", "$VALIDATION_EPOCHS",
+                "--validation_prompts", "$VALID_PROMPT",
+                "--checkpointing_steps", "$CHECKPOINTING_STEPS",
+                "--output_dir", "$OUTPUT_DIR",
+                "--image_column", "image",
+                // "--caption_column", "additional_feature",
+                "--pretrained_vae_path", "$VAE_DIR",
+                "--cache_dir", "$TMPDIR",
+                "--report_to", "wandb",
+                // "--logging_dir", "${LOG_DIR}${EXPERIMENT}_log",
+                "--seed", "42",
+                "--checkpointing_log_file", "$CKPT_LOG_FILE",
+                "--checkpoint_number", "$CKPT_NUMBER",
+                "--trained_steps", "$TRAINED_STEPS"
+            ]
+EOF

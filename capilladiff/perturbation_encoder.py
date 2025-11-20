@@ -182,6 +182,7 @@ class PerturbationEncoderInference:
         self.model_name = model_name
         self.root = os.path.dirname(os.path.abspath(__file__))+"/required_file/"
 
+        ''' OLD MORPHODIFF CODE
         if 'HUVEC' in self.dataset_id:
             self.sirna_to_gene_df = pd.read_csv(
                 self.root+'ThermoFisher-export.csv')
@@ -199,6 +200,8 @@ class PerturbationEncoderInference:
                 'perturbation_embedding_rohban.csv', header=None)
             self.pert_to_embedding.columns = ['gene_name'] + [str(i) for i in range(512)]
 
+        '''
+
     def __call__(self, identifier):
         """Get gene embedding for input perturbation with unique identifier.
 
@@ -209,7 +212,7 @@ class PerturbationEncoderInference:
             embedding (tensor): perturbation embedding
         """
         embedding = []
-
+        '''  OLD MORPHODIFF CODE
         if self.model_name == 'SD':
 
             if self.model_type == 'conditional':
@@ -229,6 +232,10 @@ class PerturbationEncoderInference:
                     (1, 77, 768))
             
             assert embedding.shape == (1, 77, 768)
+        '''
+
+        embedding = torch.ones(
+                    (1, 77, 768))
 
         return embedding
     

@@ -146,6 +146,7 @@ def load_model_and_generate_images(pipeline, model_checkpoint, prompts_df,
         img_len = len(os.listdir(model_dir))
         assert img_len >= num_imgs
 
+        '''
         generated_pert_dir = 'result/generated_perturbation_list/'
         if ood:
             ood_file = open(
@@ -157,6 +158,7 @@ def load_model_and_generate_images(pipeline, model_checkpoint, prompts_df,
                 generated_pert_dir+model_name+'/in_dist_pert_generated.txt', 'a')
             in_dist_file.write('\n'+prompt)
             in_dist_file.close()
+        '''
 
         print('Total images generated for '+prompt+': '+str(img_len))
         print("Generating time: ", datetime.datetime.now()-start)
@@ -198,6 +200,7 @@ if __name__ == '__main__':
     model_name = args.model_checkpoint.split('/')[-2]+'_' +\
             args.model_checkpoint.split('/')[-1]
 
+    '''
     gen_pert_dir = 'result/generated_perturbation_list/'
     if not os.path.exists(gen_pert_dir+model_name):
         os.makedirs(gen_pert_dir+model_name)
@@ -205,6 +208,7 @@ if __name__ == '__main__':
             f.write('in_dist')
         with open(gen_pert_dir+model_name+'/ood_pert_generated.txt', 'w') as f:
             f.write('ood')
+    '''
 
     if not os.path.exists(args.gen_img_path):
         os.makedirs(args.gen_img_path)
