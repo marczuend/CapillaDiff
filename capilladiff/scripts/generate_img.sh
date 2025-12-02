@@ -4,47 +4,113 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-## Load the environment
-# source /home/env/morphodiff/bin/activate
+##################################################################################
+############ NEEDED VARIABLES TO SET BEFORE RUNNING THE SCRIPT  ##################
+##################################################################################
 
-## Define/adjust the parameters ##
-## Set the experiment name
-EXPERIMENT="third_test"
-## CKPT_PATH is the path to the checkpoint folder. 
-## you can download pretrained checkpoints from https://huggingface.co/navidi/MorphoDiff_checkpoints/tree/main, 
-## or from https://huggingface.co/CompVis/stable-diffusion-v1-4 if you want to train from scratch
-CKPT_PATH="/cluster/home/mazuend/CapillaDiff/checkpoint/3d_test_run-CapillaDiff/checkpoint-50"
-## Set path to the directory where you want to save the generated images
-GEN_IMG_PATH="/cluster/home/mazuend/CapillaDiff/generated_imgs/${EXPERIMENT}/"
+# Paths and names
+MODEL_PATH="/cluster/home/mazuend/CapillaDiff/experiments/NON_bool_encoding_cfg_run_1/checkpoints/checkpoint-10000"
+EXPERIMENT="None"      # if "None", the name of the used model checkpoint will be used
+METADATA_FILE="None"  # if "None", the metadata file used during training will be used
 
-## Set the number of images you want to generate
-NUM_GEN_IMG=5
-## Set the out-of-distribution (OOD) status of the generated images
-OOD=False
-MODEL_NAME="SD" # this is fixed for Stable Diffusion and MorphoDiff
-MODEL_TYPE="naive" # set "conditional" for MorphoDiff, and "naive" for unconditional SD
+GEN_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/generated_imgs"
+OVERWRITE_EXISTING=True  # set to True to overwrite existing images in the output directory, False otherwise
 
-## The PERTURBATION_LIST_PATH variable should be the address of a .csv file with the following columns: perturbation, ood (including header)
-## sample file can be found in morphodiff/required_file/BBBC021_14_compounds_pert_ood_info.csv for the BBBC021 experiment sample, and
-## morphodiff/required_file/HUVEC_single_batch_pert_ood_info.csv for the HUVEC experiment sample
-PERTURBATION_LIST_PATH="../required_file/BBBC021_14_compounds_pert_ood_info.csv" 
+CONDITION_LIST_PATH="None"  # if "None", no conditions will be used for image generation
+CONDITIONS="None"           # if "None", all conditions in CONDITION_LIST_PATH will be used
+SEED=random                 # set to "random" for random seed, or an integer for a fixed seed
+
+NUM_GEN_IMG=30 # Set the number of images you want to generate for each condition
+MAX_NUM_GEN_IMG=2  # Maximum number of images to generate in total, if [>0], NUM_GEN_IMG will be adjusted accordingly
+IMG_DISTRIBUTION="inverse_proportional"     # set to "uniform", "proportional" or "inverse_proportional" for different image distribution strategies
+                                            # only used if MAX_NUM_GEN_IMG > 0
+MODEL_TYPE="conditional" # set "conditional" for Conditional SD, and "naive" for unconditional SD
+
+##################################################################################
+######################### END OF VARIABLE SETTINGS ###############################
+##################################################################################
+
+if [ "$EXPERIMENT" == "None" ]; then
+    # extract experiment name from model path
+    MODEL_NAME=$(echo "$MODEL_PATH" | sed -n 's|.*/experiments/\([^/]*\)/.*|\1|p')
+    CHECKPOINT_NUMBER=$(basename "$MODEL_PATH" | sed 's|checkpoint-||')
+    EXPERIMENT="${MODEL_NAME}_ckpt_${CHECKPOINT_NUMBER}"
+fi
+
+GEN_IMG_PATH="${GEN_IMG_PATH}/${EXPERIMENT}"
+
+# check if the output directory exists
+if find "$GEN_IMG_PATH" -type f -name "*.png" 2>/dev/null | grep -q . && [ "$OVERWRITE_EXISTING" == "True" ]; then
+    echo "==============================================================="
+    echo -e "\n\033[1;41mWARNING\033[0m Output directory '$GEN_IMG_PATH' already exists and is not empty!"
+    # ask if wanted to overwrite, create new directory, or abort
+    echo "1) Continue and overwrite existing files"
+    echo "2) Create a new directory with timestamp"
+    echo "3) Abort process"
+    read -p "Choose an option (1-3): " choice
+
+    if [[ $choice == "1" ]]; then
+        echo "Overwriting existing files in $GEN_IMG_PATH"
+        rm -rf "$GEN_IMG_PATH"/*
+    elif [[ $choice == "2" ]]; then
+        TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+        GEN_IMG_PATH="${GEN_IMG_PATH}_$TIMESTAMP"
+        mkdir -p "$GEN_IMG_PATH"
+        echo "Created new directory: $GEN_IMG_PATH"
+    else
+        echo "Process aborted by user."
+        exit 1
+    fi
+    echo "==============================================================="
+fi
+
+### Print settings
+echo "================= Image Generation Settings ==================="
+printf "%-30s : %s\n" "Experiment name" "$EXPERIMENT"
+printf "%-30s : %s\n" "Model path" "$MODEL_PATH"
+if [ "$METADATA_FILE" == "None" ]; then
+    printf "%-30s : %s\n" "Metadata file path" "Using metadata file from training"
+else
+    printf "%-30s : %s\n" "Metadata file path" "$METADATA_FILE"
+fi
+if [ "$CONDITION_LIST_PATH" == "None" ]; then
+    printf "%-30s : %s\n" "Condition list path" "Using all conditions from metadata file"
+else
+    printf "%-30s : %s\n" "Condition list path" "$CONDITION_LIST_PATH"
+fi
+printf "%-30s : %s\n" "Generated images path" "$GEN_IMG_PATH"
+printf "%-30s : %s\n" "Condition list path" "$CONDITION_LIST_PATH"
+# if MAX_NUM_GEN_IMG > 0, print MAX_NUM_GEN_IMG else print NUM_GEN_IMG
+if [ "$MAX_NUM_GEN_IMG" -gt 0 ]; then
+    printf "%-30s : %s\n" "Number of generated images" "$MAX_NUM_GEN_IMG"
+else
+    printf "%-30s : %s\n" "Number of generated images" "$NUM_GEN_IMG"
+    printf "%-30s : %s\n" "Image distribution strategy" "$IMG_DISTRIBUTION"
+fi
+printf "%-30s : %s\n" "Model type" "$MODEL_TYPE"
+printf "%-30s : %s\n" "Seed" "$SEED"
+echo "==============================================================="
+
+# Ask user if we should proceed
+read -p "Do you want to proceed? (y/n) " -n 1 -r
+echo    # move to a new line
+echo "==============================================================="
+
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Process aborted by user."
+    exit 1
+fi
 
 ## Generate images
 python ../evaluation/generate_img.py \
 --experiment $EXPERIMENT \
---model_checkpoint $CKPT_PATH \
---model_name $MODEL_NAME \
+--model_checkpoint $MODEL_PATH \
 --model_type $MODEL_TYPE \
---vae_path $CKPT_PATH \
---perturbation_list_address $PERTURBATION_LIST_PATH \
+--condition_list_address $CONDITION_LIST_PATH \
 --gen_img_path $GEN_IMG_PATH \
 --num_imgs $NUM_GEN_IMG \
---ood $OOD # &
-
-## uncomment the blow lines (and the "&" in the last line of calling the python script above) 
-## if you want your script reallocates resources and resume generating images 
-## for all perturbations even after the allocated time is over
-
-# wait
-# echo 'waking up'
-# echo `date`: Job $SLURM_JOB_ID is allocated resource
+--total_num_imgs $MAX_NUM_GEN_IMG \
+--metadata_file_path $METADATA_FILE \
+--overwrite_existing $OVERWRITE_EXISTING \
+--seed $SEED \
+--img_distribution $IMG_DISTRIBUTION

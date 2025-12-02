@@ -4,14 +4,20 @@ import os
 import torch
 import datetime
 import argparse
-from transformers import AutoFeatureExtractor
+from transformers import CLIPImageProcessor
 from diffusers import AutoencoderKL, UNet2DConditionModel
-from perturbation_encoder import PerturbationEncoderInference
 from typing import Optional
 import pandas as pd
 import random
 import numpy as np
+from tqdm import tqdm
 
+# Local imports
+import sys
+# Add parent folder to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from CapillaDiff_encoder import ConditionEncoderInference, ConditionEncoder, DictToListEncoder
+from CapillaDiff_dataloader import DatasetLoader
 
 def str2bool(v):
     """Convert string to boolean.
@@ -31,7 +37,7 @@ def str2bool(v):
     return
 
 
-class CustomStableDiffusionPipeline(StableDiffusionPipeline):
+class CapillaDiffusionPipeline(StableDiffusionPipeline):
     def __init__(self,
                  vae,
                  text_encoder,
@@ -65,26 +71,10 @@ class CustomStableDiffusionPipeline(StableDiffusionPipeline):
         lora_scale: Optional[float] = None,
         clip_skip: Optional[int] = None,
     ):
-        #embeddings = self.custom_text_encoder(prompt)
-        embeddings = torch.ones(
-                    (1, 77, 768))  # dummy embedding
-
-        if False:
-            from transformers import CLIPTokenizer, CLIPTextModel
-
-            print("Using CLIP text encoder for embeddings...")
-            path_clip ="/cluster/customapps/medinfmk/mazuend/CapillaDiff/clip_model"
-            print("path: "+path_clip)
-
-            tokenizer = CLIPTokenizer.from_pretrained(path_clip+"/clip_tokenizer", local_files_only=True)
-            text_encoder = CLIPTextModel.from_pretrained(path_clip+"/clip_text_encoder", local_files_only=True)
-
-            text = "a microscope image of cells"
-            tokens = tokenizer(text, return_tensors="pt", padding="max_length", truncation=True, max_length=77)
-            embeddings = text_encoder(**tokens).last_hidden_state  # shape (1, 77, 768)
-
+        # decode prompt using custom text encoder
+        condition = DictToListEncoder().decode(prompt)
+        embeddings = self.custom_text_encoder(condition)
         embeddings = embeddings.to(device)
-
         return embeddings, None
 
 
@@ -101,169 +91,351 @@ def set_seed(seed):
     return
 
 
-def load_model_and_generate_images(pipeline, model_checkpoint, prompts_df,
-                                   gen_img_path, num_imgs=500):
+def load_model_and_generate_images(pipeline, conditions,
+                                   gen_img_path, overwrite_existing=False):
     """Load the model and generate images for the given prompts.
 
     Args:
-        model_checkpoint (str): The address of the model checkpoint.
-        prompts (list): A list of prompts to generate images for.
-        gen_img_path (str): The address of the directory to save the generated
-        images."""
+        pipeline: CapillaDiffusionPipeline
+        conditions (list): contains condition name, number of images per condition, condition values
+        gen_img_path (str): path to save generated images
+    """
 
-    model_name = model_checkpoint.split('/')[-2]+'_' +\
-        model_checkpoint.split('/')[-1]
+    total_num_imgs = sum([cond['num_imgs'] for cond in conditions])
+    num_generated_imgs = 0
 
-    for idx, row in prompts_df.iterrows():
-        prompt = row['perturbation']
-        ood = row['ood']
+    print(f"Total number of images to generate: {total_num_imgs}")
 
-        model_dir = gen_img_path+prompt+'/'+model_name
-        if 'naive' in model_checkpoint.lower():
-            model_dir = gen_img_path+model_name
-        if not os.path.exists(model_dir):
-            os.makedirs(model_dir)
+    # disable progress bar of pipeline
+    from tqdm.auto import tqdm
+    pipeline.progress_bar = lambda *args, **kwargs: tqdm(disable=True)
 
-        set_seed(42)
+    for condition in tqdm(conditions, desc="Over all Conditions", unit="cond"):
+
+        condition_name = condition.pop('condition_name')
+        num_imgs = condition.pop('num_imgs')
+        if num_imgs <= 0: continue
+
+        img_series_dir = gen_img_path + "/" + condition_name
+
+        # turn dictionary into list, so it gets accepted by pipeline
+        prompt = DictToListEncoder().encode(condition)
+
+        if not os.path.exists(img_series_dir):
+            os.makedirs(img_series_dir)
+
         start = datetime.datetime.now()
-        imgs = os.listdir(model_dir)
 
-        if len(imgs) >= num_imgs:
-            print(str(len(imgs))+' already generated.')
-            continue
+        if overwrite_existing:
+            for img in os.listdir(img_series_dir):
+                os.remove(os.path.join(img_series_dir, img))
 
-        print('Number of images generated for '+prompt+': '+str(len(imgs)) +
-              ', and '+str(num_imgs-len(imgs))+' more will be generated')
-        while len(imgs) < num_imgs:
-            image = pipeline(
-                prompt=prompt)
-            imgs = os.listdir(model_dir)
-            image_name = f'{prompt}-generated-{len(imgs)}.png'
-            image_path = model_dir+"/"+image_name
-            image.images[0].save(image_path)
-            imgs = os.listdir(model_dir)
+        imgs = os.listdir(img_series_dir)
 
-        img_len = len(os.listdir(model_dir))
+        with tqdm(total=num_imgs, desc=f"{condition_name}", unit="img") as pbar:
+            pbar.update(len(imgs))
+
+            while len(imgs) < num_imgs:
+                image = pipeline(prompt=prompt)
+
+                imgs = os.listdir(img_series_dir)
+                image_name = f'{condition_name}--{len(imgs)}.png'
+                image_path = os.path.join(img_series_dir, image_name)
+                image.images[0].save(image_path)
+
+                imgs = os.listdir(img_series_dir)
+                pbar.update(1)
+
+        img_len = len(os.listdir(img_series_dir))
         assert img_len >= num_imgs
 
+        # TODO: Description of generated files here
         '''
-        generated_pert_dir = 'result/generated_perturbation_list/'
-        if ood:
-            ood_file = open(
-                generated_pert_dir+model_name+'/ood_pert_generated.txt', 'a')
-            ood_file.write('\n'+prompt)
-            ood_file.close()
-        else:
-            in_dist_file = open(
-                generated_pert_dir+model_name+'/in_dist_pert_generated.txt', 'a')
-            in_dist_file.write('\n'+prompt)
-            in_dist_file.close()
-        '''
+        # print estimiated time remaining
+        total_time = datetime.datetime.now()-start
+        time_per_img = total_time / num_imgs
+        num_generated_imgs += num_imgs
+        imgs_left = total_num_imgs - num_generated_imgs
+        est_time_left = time_per_img * imgs_left
 
-        print('Total images generated for '+prompt+': '+str(img_len))
-        print("Generating time: ", datetime.datetime.now()-start)
-        print()
+
+        print("\n" + "="*50)
+        # in hours. minutes, seconds
+        hours, remainder = divmod(est_time_left.total_seconds(), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        est_time_left = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+        print(f" ESTIMATED TIME REMAINING: {est_time_left}")
+        print("="*50 + "\n")
+        '''
 
     return
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model_checkpoint', default='',
+def parse_args():
+    parser = argparse.ArgumentParser(description="CapillaDiff Image Generation")
+    
+    parser.add_argument('--model_checkpoint',
+                        required=True,
                         help="a name for identifying the model")
-    parser.add_argument('--perturbation_list_address',
-                        default='',
-                        help="a file with a list of all perturbations")
-    parser.add_argument('--gen_img_path', default='',
-                        help="a name for identifying the model")
+    parser.add_argument('--metadata_file_path',
+                        default=None, 
+                        help="path to the metadata csv file on which the model was trained")
+    parser.add_argument('--convert_to_boolean',
+                        type=str2bool, nargs='?',
+                        default=None,
+                        help="whether to convert condition to boolean embedding. is given in training_config.json of trained model")
+    parser.add_argument('--text_mode',
+                        default="",
+                        help="text mode used during training. is given in training_config.json of trained model")
+    parser.add_argument('--condition_list_address',
+                        required=True,
+                        help="a file with a list of all condition combinations")
+    parser.add_argument('--gen_img_path', 
+                        default=None,
+                        help="path to save generated images")
     parser.add_argument('--num_imgs', default=3,
-                        help="a name for identifying the model")
-    parser.add_argument('--vae_path', default='',
-                        help="a name for identifying the model")
-    parser.add_argument('--experiment', default='HUVEC-01',
-                        help="a name for identifying the model")
+                        type=int,
+                        help="number of images to generate")
+    parser.add_argument('--total_num_imgs',
+                        default=None,
+                        type=int,
+                        help="total number of images to generate. if set, overrides --num_imgs")
+    parser.add_argument('--img_distribution',
+                        default='uniform',
+                        help="image distribution per condition strategy: 'uniform', 'proportional' or 'inverse_proportional'")
+    parser.add_argument('--experiment',
+                        required=True,
+                        help="experiment name")
     parser.add_argument('--model_type', default='conditional',
-                        help="a name for identifying the model")
-    parser.add_argument("--ood", type=str2bool, nargs='?',
-                        const=True, default=True,
-                        help="indicating if generate images for " +
-                        "ood perturbations or in-dist perturbations")
-    parser.add_argument('--cluster', default='-',
-                        help="cluster")
-    parser.add_argument('--model_name', default='SD',
-                        help="model type")
-    parser.add_argument('--clip_path', default='',
-                        help="path to CLIP model")
-    args = parser.parse_args()
-    args.num_imgs = int(args.num_imgs)
+                        help="model type: conditional or naive")
+    parser.add_argument('--overwrite_existing',
+                        type=str2bool, nargs='?',
+                        default=False,
+                        help="whether to overwrite existing images in the output directory")
+    parser.add_argument('--seed', 
+                        type=str,
+                        default='42',
+                        help="random seed for reproducibility. Set to 'random' for a random seed.")
 
-    model_name = args.model_checkpoint.split('/')[-2]+'_' +\
-            args.model_checkpoint.split('/')[-1]
+    return parser.parse_args()
 
-    '''
-    gen_pert_dir = 'result/generated_perturbation_list/'
-    if not os.path.exists(gen_pert_dir+model_name):
-        os.makedirs(gen_pert_dir+model_name)
-        with open(gen_pert_dir+model_name+'/in_dist_pert_generated.txt', 'w') as f:
-            f.write('in_dist')
-        with open(gen_pert_dir+model_name+'/ood_pert_generated.txt', 'w') as f:
-            f.write('ood')
-    '''
+if __name__ == '__main__':
+
+    args = parse_args()
+
+    # enable reproducibility
+    if args.seed == 'random':
+        args.seed = random.randint(0, 1000000)
+        #print(f"Using random seed: {args.seed}")
+    else:
+        args.seed = int(args.seed)
+    set_seed(args.seed)
+
+    # read training_config for model
+    try:
+        import json
+        model_config_path = os.path.join(
+            args.model_checkpoint,
+            'training_config.json')
+        with open(model_config_path, 'r') as f:
+            training_config = json.load(f)
+        
+
+        if args.convert_to_boolean is None:
+            args.convert_to_boolean = training_config.get('convert_to_boolean', False)
+        if args.metadata_file_path == "None" or args.metadata_file_path is None:
+            args.metadata_file_path = training_config.get('metadata_file_path', None)
+        if  args.text_mode == "":
+            args.text_mode = training_config.get('text_mode', None)
+        if args.text_mode == "None" or args.text_mode is None:
+            args.text_mode = None
+
+    except Exception as e:
+        raise Exception(f"Error reading training_config.json: {e}")
+
+    if args.gen_img_path is None:
+        args.gen_img_path = os.path.join(
+            os.path.expanduser('~'),
+            'CapillaDiff',
+            'generated_images',
+            args.experiment)
 
     if not os.path.exists(args.gen_img_path):
         os.makedirs(args.gen_img_path)
+        print(f"Created directory for generated images: {args.gen_img_path}")
 
-    # read perturbations
-    prompts = []
-    perturbation_file = args.perturbation_list_address
+    # initialize SD model
+    feature_extractor = CLIPImageProcessor.from_pretrained(
+        args.model_checkpoint+'/feature_extractor')
+    print('Loaded feature_extractor')
 
-    prompt_df = pd.read_csv(perturbation_file)
+    vae = AutoencoderKL.from_pretrained(
+        args.model_checkpoint, subfolder="vae")
+    print('Loaded vae model')
 
-    if args.ood:
-        prompt_df = prompt_df[prompt_df['ood']==True]
+    unet = UNet2DConditionModel.from_pretrained(
+        args.model_checkpoint, subfolder="unet_ema", use_auth_token=True)
+    print('Loaded EMA unet model')
+
+    noise_scheduler = DDPMScheduler.from_pretrained(
+        args.model_checkpoint, subfolder="scheduler")
+    print('Loaded noise_scheduler')
+
+    # dataset_id, cluster, model
+    custom_encoder = ConditionEncoderInference(
+        model_type=args.model_type,
+        convert_to_boolean=args.convert_to_boolean,
+        text_mode=args.text_mode
+    )
+    print('Loaded custom_text_encoder')
+
+    # Initialize your custom pipeline
+    pipeline = CapillaDiffusionPipeline(
+        vae=vae,
+        unet=unet,
+        text_encoder=custom_encoder,
+        feature_extractor=feature_extractor,
+        scheduler=noise_scheduler)
+    print('Initialized pipeline')
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    pipeline.to(device)
+
+    # Get images with labels
+    dataset = DatasetLoader(
+        img_folder_path = "", # not needed for image generation
+        metadata_csv_path = args.metadata_file_path,
+        #relevant_columns: list = None
+        )
+
+    dataset_info = dataset.get_dataset_info(custom_encoder)
+
+    # decide on how mayny images to generate per condition
+    if args.total_num_imgs is None or args.total_num_imgs <= 0:
+        # add column with num_imgs per condition
+        for cond in dataset_info['all_conditions']:
+            cond['num_imgs'] = int(args.num_imgs)
+
     else:
-        prompt_df = prompt_df[prompt_df['ood']==False]
 
-    if args.model_name == 'SD':
-        # initialize SD model
-        feature_extractor = AutoFeatureExtractor.from_pretrained(
-            args.model_checkpoint+'/feature_extractor')
-        print('Loaded feature_extractor')
+        def allocate_counts(fractional_values, total_count):
+            """
+            Convert fractional allocation values into integers whose sum equals total_count.
+            Uses the 'largest remainder method'.
+            
+            fractional_values: list of floats (weights * target_total)
+            total_count: final number of items to allocate
 
-        vae = AutoencoderKL.from_pretrained(
-            args.vae_path, subfolder="vae")
-        print('Loaded vae model')
+            Returns: list of integers
+            """
 
-        unet = UNet2DConditionModel.from_pretrained(
-            args.model_checkpoint, subfolder="unet_ema", use_auth_token=True)
-        print('Loaded EMA unet model')
+            # Step 1 — floor values
+            base = [int(x) for x in fractional_values]
 
-        noise_scheduler = DDPMScheduler.from_pretrained(
-            args.model_checkpoint, subfolder="scheduler")
-        print('Loaded noise_scheduler')
+            # Step 2 — compute remaining images to distribute
+            remainder = total_count - sum(base)
+            if remainder < 0:
+                raise ValueError("Total of floored values exceeds total_count, cannot allocate.")
 
-        # dataset_id, cluster, model
-        custom_gene_encoder = PerturbationEncoderInference(
-            args.experiment,
-            args.model_type,
-            args.model_name)
-        print('Loaded custom_text_encoder')
+            # Step 3 — compute fractional remainders
+            fracs = [(x - int(x), idx) for idx, x in enumerate(fractional_values)]
 
-        # Initialize your custom pipeline
-        pipeline = CustomStableDiffusionPipeline(
-            vae=vae,
-            unet=unet,
-            text_encoder=custom_gene_encoder,
-            feature_extractor=feature_extractor,
-            scheduler=noise_scheduler)
-        print('Initialized pipeline')
+            # Step 4 — give leftover counts to highest fractional parts
+            fracs.sort(reverse=True)  # highest remainder first
+            for i in range(remainder):
+                idx = fracs[i][1]
+                base[idx] += 1
 
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        pipeline.to(device)
+            return base
+        
+        num_conditions = len(dataset_info['all_conditions'])
+        if args.img_distribution == 'uniform':
+            
+            # ensure at least one image per condition
+            if num_conditions < args.total_num_imgs:
+                imgs_per_condition = 1
+            else:
+                imgs_per_condition = args.total_num_imgs // num_conditions
+            for cond in dataset_info['all_conditions']:
+                cond['num_imgs'] = int(imgs_per_condition)
 
-        load_model_and_generate_images(
-            pipeline,
-            args.model_checkpoint,
-            prompt_df,
-            args.gen_img_path,
-            args.num_imgs)
+        elif args.img_distribution == 'proportional':
+            fractional = [cond['relative_frequency'] * args.total_num_imgs for cond in dataset_info['all_conditions']]
+            normalized_fractional = [x / sum(fractional) * args.total_num_imgs for x in fractional]
+
+            allocations = allocate_counts(normalized_fractional, args.total_num_imgs)
+
+            for cond, count in zip(dataset_info['all_conditions'], allocations):
+                cond['num_imgs'] = count
+
+        elif args.img_distribution == 'inverse_proportional':
+            # calculate inverse proportional frequencies
+            total_inverse_freq = [1.0 / cond['relative_frequency'] for cond in dataset_info['all_conditions']]
+            fractional = [(freq / num_conditions) * args.total_num_imgs for freq in total_inverse_freq]
+            normalized_fractional = [x / sum(fractional) * args.total_num_imgs for x in fractional]
+
+            allocations = allocate_counts(normalized_fractional, args.total_num_imgs)
+
+            for cond, count in zip(dataset_info['all_conditions'], allocations):
+                cond['num_imgs'] = count
+
+    columns_to_keep = dataset.get_relevant_columns() + ['condition_name', 'num_imgs']
+    conditions = [
+        {col: cond[col] for col in columns_to_keep}
+        for cond in dataset_info['all_conditions']
+    ]
+
+    # filter conditions based on model type
+    if args.model_type == 'naive':
+        conditions = conditions[:1]
+        for col in dataset.get_relevant_columns():
+            conditions[0][col] = 1.0
+        conditions[0]['condition_name'] = 'naive'
+    
+    elif args.model_type != 'conditional':
+        raise Exception("Model type not recognized.")
+
+    # keep only conditions with num_imgs > 0
+    conditions = [cond for cond in conditions if cond['num_imgs'] > 0]
+
+    # copy conditions for logging
+    conditions_log_df = pd.DataFrame(conditions)
+
+    print("==========================================================")
+    print("============== Starting image generation ================")
+    print("==========================================================")
+
+    load_model_and_generate_images(
+        pipeline,
+        conditions,
+        args.gen_img_path,
+        overwrite_existing=args.overwrite_existing
+    )
+
+    # save a config file with generation settings
+    generation_config = {
+        'model_checkpoint': args.model_checkpoint,
+        'metadata_file_path': args.metadata_file_path,
+        'convert_to_boolean': args.convert_to_boolean,
+        'text_mode': args.text_mode,
+        'condition_list_address': args.condition_list_address,
+        'gen_img_path': args.gen_img_path,
+        'num_imgs': args.num_imgs,
+        'total_num_imgs': args.total_num_imgs,
+        'img_distribution': args.img_distribution,
+        'experiment': args.experiment,
+        'model_type': args.model_type,
+        'overwrite_existing': args.overwrite_existing,
+        'seed': args.seed
+    }
+    config_save_path = os.path.join(args.gen_img_path, 'generation_config.json')
+    with open(config_save_path, 'w') as f:
+        json.dump(generation_config, f, indent=4)
+
+    # save a csv file with actual number of generated images per condition
+    conditions_save_path = os.path.join(args.gen_img_path, 'generated_conditions.csv')
+    conditions_log_df.to_csv(conditions_save_path, index=False)
+
+    print("==========================================================")
+    print("============== Image generation completed ================")
+    print("==========================================================")
