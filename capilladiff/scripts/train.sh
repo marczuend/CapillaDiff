@@ -6,33 +6,29 @@
 START_OR_PRINT_JSON=1
 
 ##################################################################################
-# TRAINING PARAMETERS #
+############ NEEDED VARIABLES TO SET BEFORE RUNNING THE SCRIPT  ##################
+##################################################################################
+export EXPERIMENT="auto"   # set the experiment name
+export SD_TYPE="conditional" # set "conditional" for training CapillaDiff, and "naive" for training Stable Diffuison
+
+export CONVERT_TO_BOOLEAN=0  # set to 1 to convert conditions to boolean embeddings, 0 otherwise
+export USE_TEXT_MODE="simple"        # set to "simple" to use simple text encoding or "None" for no text encoding
+
+export NUM_TRAIN_EPOCHS=5          # 5
+export MAX_TRAIN_STEPS="None"      # "None" if provided MAX_TRAIN_STEPS, this will override NUM_TRAIN_EPOCHS
+export CHECKPOINTING_STEPS=2000      # 100
+export USE_CFG=0               # set to 1 to use classifier-free guidance during training
+export CFG_TRAINING_PROB=0.1      # set the probability of using classifier-free guidance
 
 export BATCH_SIZE=6
 export GRADIENT_ACCUMULATION_STEPS=1
 export LEARNING_RATE=1e-05
-export NUM_TRAIN_EPOCHS=5          # 5
-export MAX_TRAIN_STEPS=10000      # 500 if provided MAX_TRAIN_STEPS, this will override NUM_TRAIN_EPOCHS
-export VALIDATION_EPOCHS=2000        # 100
-export CHECKPOINTING_STEPS=2000      # 100
-export USE_CFG=1               # set to 1 to use classifier-free guidance during training
-export CFG_TRAINING_PROB=0.1      # set the probability of using classifier-free guidance
+export VALIDATION_EPOCHS=$CHECKPOINTING_STEPS
 export MIXED_PRECISION="fp16"      # set to "fp16" or "bf16" for mixed precision training. 
                                     # Set to "no" for full precision training
 
-##################################################################################
-############ NEEDED VARIABLES TO SET BEFORE RUNNING THE SCRIPT  ##################
-##################################################################################
-
 ## set path to save the experiment outputs (models, logs, tmp files, etc.)
 export SAVE_DIR="/cluster/work/medinfmk/capillaroscopy/CapillaDiff"   # if "None", the home directory will be used
-
-export EXPERIMENT="NON_bool_encoding_cfg_run_1"   # set the experiment name
-export SD_TYPE="conditional" # set "conditional" for training CapillaDiff, and "naive" for training Stable Diffuison
-#export SD_TYPE="naive"
-
-export CONVERT_TO_BOOLEAN=0  # set to 1 to convert conditions to boolean embeddings, 0 otherwise
-export USE_TEXT_MODE="None"        # set to "simple" to use simple text encoding or "None" for no text encoding
 
 ## set the path to the training data directory. Folder contents must follow the structure described in
 ## https://github.com/marczuend/CapillaDiff/blob/main/README.md#data-preparation
@@ -44,10 +40,37 @@ export METADATA_FILE="/cluster/customapps/medinfmk/mazuend/CapillaDiff/metadata/
 
 ## set the path to the pretrained model, which could be either pretrained Stable Diffusion, or a pretrained CapillaDiff model
 export MODEL_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/CapillaDiff_base"
+export CLIP_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/clip-vit-large-patch14"
 
 ##################################################################################
 ######################### END OF VARIABLE SETTINGS ###############################
 ##################################################################################
+
+# auto-name generation experiment if "auto" is set
+if [ "$EXPERIMENT" == "auto" ]; then
+    EXPERIMENT=""
+    if [ "$USE_TEXT_MODE" == "None" ]; then
+        if [ $CONVERT_TO_BOOLEAN -eq 1 ]; then
+            EXPERIMENT="${EXPERIMENT}bool_"
+        else
+            EXPERIMENT="${EXPERIMENT}non_bool_"
+        fi
+    else
+        EXPERIMENT="${EXPERIMENT}textmode_${USE_TEXT_MODE}_"
+    fi
+
+    EXPERIMENT="${EXPERIMENT}encoding_"
+
+    if [ $USE_CFG -eq 1 ]; then
+        EXPERIMENT="${EXPERIMENT}cfg_on_"
+    else
+        EXPERIMENT="${EXPERIMENT}cfg_off_"
+    fi
+
+    EXPERIMENT="${EXPERIMENT}run_1"
+
+echo "Auto-generated experiment name: $EXPERIMENT"
+fi
 
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 
@@ -76,33 +99,69 @@ cd "$SAVE_DIR"
 # Output directory
 export OUTPUT_DIR="$SAVE_DIR/experiments/${EXPERIMENT}"
 
-if find "$OUTPUT_DIR" -type f -name "*.png" 2>/dev/null | grep -q .; then
+if [[ -d "$OUTPUT_DIR" ]] && [[ "$(ls -A "$OUTPUT_DIR")" ]]; then
     echo -e "\n\033[1;41mWARNING\033[0m Output directory '$OUTPUT_DIR' already exists and is not empty!"
     echo -e "\033[1;33mContinuing will overwrite existing files in this directory.\033[0m"
-    echo 
-    read -p "Do you want to continue? (y/n) " -n 1 -r
-    echo    # move to a new line
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo
+    echo "Options:"
+    echo "  y = continue and overwrite"
+    echo "  n = abort"
+    echo "  c = create a new folder"
+    read -p "Choose (y/n/c): " -n 1 -r
+    echo    # new line
+
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         echo "Process aborted by user."
         exit 1
     fi
-    echo "==============================================================="
-fi
 
-if [ ! -d "$OUTPUT_DIR" ]; then
-    mkdir -p "$OUTPUT_DIR"
-    echo "Created output directory"
+    if [[ $REPLY =~ ^[Cc]$ ]]; then
+        
+        # Extract prefix (everything before _run_<number>)
+        PREFIX="${OUTPUT_DIR%_run_*}"
+
+        # Extract current number
+        current_num="${OUTPUT_DIR##*_run_}"
+
+        # Search all existing folders with same prefix
+        last_num=$(ls -d ${PREFIX}_run_* 2>/dev/null | \
+                grep -oP "${PREFIX}_run_\K[0-9]+" | \
+                sort -n | \
+                tail -1)
+
+        # If none exist -> start at 1
+        if [[ -z "$last_num" ]]; then
+            next_num=1
+        else
+            next_num=$((last_num + 1))
+        fi
+
+        # Build next directory name
+        NEXT_OUTPUT_DIR="${PREFIX}_run_${next_num}"
+
+        OUTPUT_DIR="$NEXT_OUTPUT_DIR"
+        mkdir -p "$OUTPUT_DIR"
+        echo "New output directory created: $OUTPUT_DIR"
+        echo "==============================================================="
+    fi
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        # remove existing files in the output directory
+        rm -rf "$OUTPUT_DIR"/*
+        echo "Continuing; existing folder will be overwritten."
+        echo "==============================================================="
+    fi
 fi
 
 # Checkpoint directory
-export CHECKPOINT_DIR="$(realpath "$OUTPUT_DIR/checkpoints")"
+export CHECKPOINT_DIR="$OUTPUT_DIR/checkpoints"
 if [ ! -d "$CHECKPOINT_DIR" ]; then
     mkdir -p "$CHECKPOINT_DIR"
     echo "Created checkpoints directory"
 fi
 
 # Temporary/cache directory
-export TMPDIR="$(realpath "$OUTPUT_DIR/tmp")"
+export TMPDIR="$OUTPUT_DIR/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p "$TMPDIR"
     echo "Created tmp directory for training/cache"
@@ -148,13 +207,16 @@ if [ "$USE_CFG" -eq 1 ]; then
 else
     printf "%-30s : %s\n" "Using CFG during training" "No"
 fi
-echo "================= Data Augmentation ==========================="
-if [ "$CONVERT_TO_BOOLEAN" -eq 1 ]; then
-    printf "%-30s : %s\n" "Convert to boolean encoding" "Yes"
+echo "================= Label Augmentation ==========================="
+if [ "$USE_TEXT_MODE" == "None" ]; then
+    if [ "$CONVERT_TO_BOOLEAN" -eq 1 ]; then
+        printf "%-30s : %s\n" "Convert to boolean encoding" "Yes"
+    else
+        printf "%-30s : %s\n" "Convert to boolean encoding" "No"
+    fi
 else
-    printf "%-30s : %s\n" "Convert to boolean encoding" "No"
+    printf "%-30s : %s\n" "Use text mode encoding" "$USE_TEXT_MODE"
 fi
-printf "%-30s : %s\n" "Use text mode encoding" "$USE_TEXT_MODE"
 echo "==============================================================="
 
 # Ask user if we should proceed
@@ -172,7 +234,7 @@ rm -rf "$OUTPUT_DIR"/*
 
 if [ $START_OR_PRINT_JSON -eq 1 ]; then
 
-  echo "Starting training... train_v2.py script launched via accelerate"
+  echo "Starting training... train.py script launched via accelerate"
   echo "==============================================================="
 
   accelerate launch --mixed_precision=$MIXED_PRECISION $SCRIPT_DIR/../train.py \
@@ -198,7 +260,8 @@ if [ $START_OR_PRINT_JSON -eq 1 ]; then
     --convert_to_boolean=$CONVERT_TO_BOOLEAN \
     --use_cfg=$USE_CFG \
     --cfg_training_prob=$CFG_TRAINING_PROB \
-    --text_mode=$USE_TEXT_MODE
+    --text_mode=$USE_TEXT_MODE \
+    --clip_path=$CLIP_PATH
 
   exit
 

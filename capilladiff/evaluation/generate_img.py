@@ -187,6 +187,9 @@ def parse_args():
     parser.add_argument('--text_mode',
                         default="",
                         help="text mode used during training. is given in training_config.json of trained model")
+    parser.add_argument('--clip_path',
+                        default=None,
+                        help="path to the CLIP model used for text encoding.")
     parser.add_argument('--condition_list_address',
                         required=True,
                         help="a file with a list of all condition combinations")
@@ -249,6 +252,8 @@ if __name__ == '__main__':
             args.text_mode = training_config.get('text_mode', None)
         if args.text_mode == "None" or args.text_mode is None:
             args.text_mode = None
+        if args.text_mode is not None:
+            args.clip_path = training_config.get('clip_path', None)
 
     except Exception as e:
         raise Exception(f"Error reading training_config.json: {e}")
@@ -265,6 +270,8 @@ if __name__ == '__main__':
         print(f"Created directory for generated images: {args.gen_img_path}")
 
     # initialize SD model
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     feature_extractor = CLIPImageProcessor.from_pretrained(
         args.model_checkpoint+'/feature_extractor')
     print('Loaded feature_extractor')
@@ -274,18 +281,28 @@ if __name__ == '__main__':
     print('Loaded vae model')
 
     unet = UNet2DConditionModel.from_pretrained(
-        args.model_checkpoint, subfolder="unet_ema", use_auth_token=True)
+        args.model_checkpoint, subfolder="unet_ema", use_auth_token=True, ignore_mismatched_sizes=True)
     print('Loaded EMA unet model')
 
     noise_scheduler = DDPMScheduler.from_pretrained(
         args.model_checkpoint, subfolder="scheduler")
     print('Loaded noise_scheduler')
 
+    # check if text mode is used
+    clip = None
+    if args.text_mode != "None":
+        # load clip model
+        from transformers import CLIPTokenizer, CLIPTextModel
+        clip_tokenizer = CLIPTokenizer.from_pretrained(args.clip_path)
+        clip_text_encoder = (CLIPTextModel.from_pretrained(args.clip_path)).to(device)
+        clip = (clip_tokenizer, clip_text_encoder, device)
+
     # dataset_id, cluster, model
     custom_encoder = ConditionEncoderInference(
         model_type=args.model_type,
         convert_to_boolean=args.convert_to_boolean,
-        text_mode=args.text_mode
+        text_mode=args.text_mode,
+        clip=clip
     )
     print('Loaded custom_text_encoder')
 
@@ -298,7 +315,6 @@ if __name__ == '__main__':
         scheduler=noise_scheduler)
     print('Initialized pipeline')
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     pipeline.to(device)
 
     # Get images with labels

@@ -9,14 +9,14 @@ cd "$SCRIPT_DIR"
 ##################################################################################
 
 # Paths and names
-MODEL_PATH="/cluster/home/mazuend/CapillaDiff/experiments/NON_bool_encoding_cfg_run_1/checkpoints/checkpoint-10000"
+MODEL_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/experiments/textmode_simple_encoding_cfg_off_run_dummy/checkpoints/checkpoint-10"
 EXPERIMENT="None"      # if "None", the name of the used model checkpoint will be used
 METADATA_FILE="None"  # if "None", the metadata file used during training will be used
 
 GEN_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/generated_imgs"
 OVERWRITE_EXISTING=True  # set to True to overwrite existing images in the output directory, False otherwise
 
-CONDITION_LIST_PATH="None"  # if "None", no conditions will be used for image generation
+CONDITION_LIST_PATH="None"  # if "None", no special conditions will be used for image generation
 CONDITIONS="None"           # if "None", all conditions in CONDITION_LIST_PATH will be used
 SEED=random                 # set to "random" for random seed, or an integer for a fixed seed
 
