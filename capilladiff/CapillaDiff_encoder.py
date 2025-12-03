@@ -92,7 +92,7 @@ def standardize_embedding_dimension(embedding):
 
     return padded_tensor
 
-def get_boolean_embedding(identifier, mode='simple'):
+def get_boolean_embedding(identifier):
         """Get boolean embedding based on input condition id.
 
         Args:
@@ -105,28 +105,24 @@ def get_boolean_embedding(identifier, mode='simple'):
         encoding = None
         true_tensor = torch.ones((1, 768)) * 0.9
         false_tensor = torch.ones((1, 768)) * 0.1
-        if mode == 'simple':
-            for value in identifier.values():
-                if make_boolean(value) == 1:
-                    # Add a layer of one-hot encoding torch.ones
-                    if encoding is None: encoding = true_tensor
-                    else: encoding = torch.cat((encoding, true_tensor), dim=0)
-                else:
-                    if encoding is None: encoding = false_tensor
-                    else: encoding = torch.cat((encoding, false_tensor), dim=0)
+        for value in identifier.values():
+            if make_boolean(value) == 1:
+                # Add a layer of one-hot encoding torch.ones
+                if encoding is None: encoding = true_tensor
+                else: encoding = torch.cat((encoding, true_tensor), dim=0)
+            else:
+                if encoding is None: encoding = false_tensor
+                else: encoding = torch.cat((encoding, false_tensor), dim=0)
 
-            encoding = encoding.unsqueeze(0) # add batch dimension
+        encoding = encoding.unsqueeze(0) # add batch dimension
 
-            # fill up the rest of the embedding with value 0 to get shape (1, 77, 768)
-            if encoding is None: encoding = torch.zeros((1, 77, 768))
-            else: encoding = F.pad(encoding, (0, 0, 0, 77 - encoding.shape[1]), "constant", 0)
-        
-        else:
-            raise NotImplementedError("Mode --{}-- is not implemented yet.".format(mode))
+        # fill up the rest of the embedding with value 0 to get shape (1, 77, 768)
+        if encoding is None: encoding = torch.zeros((1, 77, 768))
+        else: encoding = F.pad(encoding, (0, 0, 0, 77 - encoding.shape[1]), "constant", 0)
 
         return encoding
 
-def get_level_embedding(identifier, mode='simple'):
+def get_level_embedding(identifier):
         """Get more complex embedding based on input condition id.
         Based on the severity of the condition, rank the condition from 0-1.
 
@@ -140,29 +136,25 @@ def get_level_embedding(identifier, mode='simple'):
         encoding = None
         true_tensor = torch.ones((1, 768)) * 0.9
         false_tensor = torch.ones((1, 768)) * 0.1
-        if mode == 'simple':
-            for value in identifier.values():
-                value_encoding = torch.ones((1, 768)) * make_condition_ranking(value)
-                if encoding is None: encoding = value_encoding
-                else: encoding = torch.cat((encoding, value_encoding), dim=0)
+        for value in identifier.values():
+            value_encoding = torch.ones((1, 768)) * make_condition_ranking(value)
+            if encoding is None: encoding = value_encoding
+            else: encoding = torch.cat((encoding, value_encoding), dim=0)
 
-            encoding = encoding.unsqueeze(0) # add batch dimension
+        encoding = encoding.unsqueeze(0) # add batch dimension
 
-            # fill up the rest of the embedding with value 0 to get shape (1, 77, 768)
-            if encoding is None: encoding = torch.zeros((1, 77, 768))
-            else: encoding = F.pad(encoding, (0, 0, 0, 77 - encoding.shape[1]), "constant", 0)
-        
-        else:
-            raise NotImplementedError("Mode --{}-- is not implemented yet.".format(mode))
+        # fill up the rest of the embedding with value 0 to get shape (1, 77, 768)
+        if encoding is None: encoding = torch.zeros((1, 77, 768))
+        else: encoding = F.pad(encoding, (0, 0, 0, 77 - encoding.shape[1]), "constant", 0)
 
         return encoding
 
-def create_simple_text_condition(identifier):
-    """Create simple text condition based on identifier dict.
+def create_bool_text_condition(identifier):
+    """Create boolean text condition based on identifier dict.
     Args:
         identifier (dict): condition identifier
     Returns:
-        condition_text (str): simple text condition
+        condition_text (str): boolean text condition
     """
 
     condition_parts = []
@@ -178,7 +170,35 @@ def create_simple_text_condition(identifier):
         condition_parts.append(f"{key} is {condition_diagnosis}")
 
     condition_text = "; ".join(condition_parts)
-    
+
+    return condition_text
+
+def create_level_text_condition(identifier):
+    """Create level text condition based on identifier dict.
+    Args:
+        identifier (dict): condition identifier
+    Returns:
+        condition_text (str): level text condition
+    """
+
+    condition_parts = []
+    for key, value in identifier.items():
+
+        ranking = make_condition_ranking(value, normalized=False)
+
+        if ranking == 3:
+            condition_level = "severe"
+        elif ranking == 2:
+            condition_level = "moderate"
+        elif ranking == 1:
+            condition_level = "mild"
+        else:
+            condition_level = "absent"
+
+        condition_parts.append(f"{key} is {condition_level}")
+
+    condition_text = "; ".join(condition_parts)
+
     return condition_text
 
 def get_condition_embedding(identifier, model_type, convert_to_boolean, text_mode=None, clip=None):
@@ -203,9 +223,11 @@ def get_condition_embedding(identifier, model_type, convert_to_boolean, text_mod
             else:
                 embedding = get_level_embedding(identifier)
         else:
-
             if text_mode == 'simple':
-                condition_text = create_simple_text_condition(identifier)
+                if convert_to_boolean:
+                    condition_text = create_bool_text_condition(identifier)
+                else:
+                    condition_text = create_level_text_condition(identifier)
             else:
                 raise NotImplementedError("Text mode --{}-- is not implemented yet.".format(text_mode))
 

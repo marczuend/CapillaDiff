@@ -17,7 +17,7 @@ export USE_TEXT_MODE="simple"        # set to "simple" to use simple text encodi
 export NUM_TRAIN_EPOCHS=5          # 5
 export MAX_TRAIN_STEPS="None"      # "None" if provided MAX_TRAIN_STEPS, this will override NUM_TRAIN_EPOCHS
 export CHECKPOINTING_STEPS=2000      # 100
-export USE_CFG=0               # set to 1 to use classifier-free guidance during training
+export USE_CFG=1               # set to 1 to use classifier-free guidance during training
 export CFG_TRAINING_PROB=0.1      # set the probability of using classifier-free guidance
 
 export BATCH_SIZE=6
@@ -49,11 +49,14 @@ export CLIP_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/clip-v
 # auto-name generation experiment if "auto" is set
 if [ "$EXPERIMENT" == "auto" ]; then
     EXPERIMENT=""
-    if [ "$USE_TEXT_MODE" == "None" ]; then
+    if [ "$USE_TEXT_MODE" == "None" ] || [ "$USE_TEXT_MODE" == "simple" ]; then
+        if [ "$USE_TEXT_MODE" == "simple" ]; then
+            EXPERIMENT="${EXPERIMENT}textmode_simple_"
+        fi
         if [ $CONVERT_TO_BOOLEAN -eq 1 ]; then
             EXPERIMENT="${EXPERIMENT}bool_"
         else
-            EXPERIMENT="${EXPERIMENT}non_bool_"
+            EXPERIMENT="${EXPERIMENT}level_"
         fi
     else
         EXPERIMENT="${EXPERIMENT}textmode_${USE_TEXT_MODE}_"
@@ -208,11 +211,14 @@ else
     printf "%-30s : %s\n" "Using CFG during training" "No"
 fi
 echo "================= Label Augmentation ==========================="
-if [ "$USE_TEXT_MODE" == "None" ]; then
+if [ "$USE_TEXT_MODE" == "None" ] || [ "$USE_TEXT_MODE" == "simple" ]; then
+    if [ "$USE_TEXT_MODE" == "simple" ]; then
+        printf "%-30s : %s\n" "Use text mode encoding" "$USE_TEXT_MODE"
+    fi
     if [ "$CONVERT_TO_BOOLEAN" -eq 1 ]; then
-        printf "%-30s : %s\n" "Convert to boolean encoding" "Yes"
+        printf "%-30s : %s\n" "Converting to boolean encoding" "Yes"
     else
-        printf "%-30s : %s\n" "Convert to boolean encoding" "No"
+        printf "%-30s : %s\n" "Converting to level encoding" "Yes"
     fi
 else
     printf "%-30s : %s\n" "Use text mode encoding" "$USE_TEXT_MODE"
