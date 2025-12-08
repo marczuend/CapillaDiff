@@ -91,8 +91,15 @@ class DatasetLoader(Dataset):
                 .sort_values("frequency", ascending=False)
             )
 
-            # merge back the original condition values
-            cond_combo = cond_combo.merge(self.metadata[self.relevant_columns + encoded_relevant_columns].drop_duplicates(), on=encoded_relevant_columns, how='left')
+            # drop duplicates only based on encoded columns
+            metadata_unique = self.metadata.drop_duplicates(subset=encoded_relevant_columns)
+
+            # merge
+            cond_combo = cond_combo.merge(
+                metadata_unique[self.relevant_columns + encoded_relevant_columns],
+                on=encoded_relevant_columns,
+                how='left'
+            )
 
             # add relative frequency column
             cond_combo['relative_frequency'] = cond_combo['frequency'] / info['total_samples']
