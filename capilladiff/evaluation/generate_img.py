@@ -1,4 +1,6 @@
-# make sure you're logged in with `huggingface-cli login`
+#!/usr/bin/env python
+# coding=utf-8
+
 from diffusers import StableDiffusionPipeline, DDPMScheduler
 import os
 import torch
@@ -74,6 +76,10 @@ class CapillaDiffusionPipeline(StableDiffusionPipeline):
         # decode prompt using custom text encoder
         condition = DictToListEncoder().decode(prompt)
         embeddings = self.custom_text_encoder(condition)
+
+        if num_images_per_prompt > 1:
+            embeddings = embeddings.repeat(num_images_per_prompt, 1, 1)  # (num_images_per_prompt, seq_len, embed_dim)
+
         embeddings = embeddings.to(device)
         return embeddings, None
 
@@ -92,7 +98,7 @@ def set_seed(seed):
 
 
 def load_model_and_generate_images(pipeline, conditions,
-                                   gen_img_path, overwrite_existing=False):
+                                   gen_img_path, overwrite_existing=False, batch_size=1):
     """Load the model and generate images for the given prompts.
 
     Args:
@@ -101,8 +107,11 @@ def load_model_and_generate_images(pipeline, conditions,
         gen_img_path (str): path to save generated images
     """
 
+    # check batch size
+    if batch_size <= 0:
+        raise ValueError("Batch size must be a positive integer.")
+
     total_num_imgs = sum([cond['num_imgs'] for cond in conditions])
-    num_generated_imgs = 0
 
     print(f"Total number of images to generate: {total_num_imgs}")
 
@@ -136,39 +145,18 @@ def load_model_and_generate_images(pipeline, conditions,
             pbar.update(len(imgs))
 
             while len(imgs) < num_imgs:
-                image = pipeline(prompt=prompt)
 
+                batch_size_eff = min(batch_size, num_imgs - len(imgs))
+                output = pipeline(prompt=prompt, num_images_per_prompt=batch_size_eff)
+
+                 # save all images in batch
+                for i in range(batch_size_eff):
+                    image_name = f'{condition_name}--{len(imgs) + i}.png'
+                    image_path = os.path.join(img_series_dir, image_name)
+                    output.images[i].save(image_path)
+
+                pbar.update(batch_size_eff)
                 imgs = os.listdir(img_series_dir)
-                image_name = f'{condition_name}--{len(imgs)}.png'
-                image_path = os.path.join(img_series_dir, image_name)
-                image.images[0].save(image_path)
-
-                imgs = os.listdir(img_series_dir)
-                pbar.update(1)
-
-        img_len = len(os.listdir(img_series_dir))
-        assert img_len >= num_imgs
-
-        # TODO: Description of generated files here
-        '''
-        # print estimiated time remaining
-        total_time = datetime.datetime.now()-start
-        time_per_img = total_time / num_imgs
-        num_generated_imgs += num_imgs
-        imgs_left = total_num_imgs - num_generated_imgs
-        est_time_left = time_per_img * imgs_left
-
-
-        print("\n" + "="*50)
-        # in hours. minutes, seconds
-        hours, remainder = divmod(est_time_left.total_seconds(), 3600)
-        minutes, seconds = divmod(remainder, 60)
-        est_time_left = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
-        print(f" ESTIMATED TIME REMAINING: {est_time_left}")
-        print("="*50 + "\n")
-        '''
-
-    return
 
 
 def parse_args():
@@ -219,6 +207,10 @@ def parse_args():
                         type=str,
                         default='42',
                         help="random seed for reproducibility. Set to 'random' for a random seed.")
+    parser.add_argument('--batch_size', 
+                        type=int,
+                        default=1,
+                        help="batch size for image generation.")
 
     return parser.parse_args()
 
@@ -290,12 +282,13 @@ if __name__ == '__main__':
 
     # check if text mode is used
     clip = None
-    if args.text_mode != "None":
+    if args.text_mode is not None:
         # load clip model
         from transformers import CLIPTokenizer, CLIPTextModel
-        clip_tokenizer = CLIPTokenizer.from_pretrained(args.clip_path)
-        clip_text_encoder = (CLIPTextModel.from_pretrained(args.clip_path)).to(device)
+        clip_tokenizer = CLIPTokenizer.from_pretrained(args.clip_path, local_files_only=True)
+        clip_text_encoder = (CLIPTextModel.from_pretrained(args.clip_path, local_files_only=True)).to(device)
         clip = (clip_tokenizer, clip_text_encoder, device)
+        print('Loaded CLIP model for text encoding')
 
     # dataset_id, cluster, model
     custom_encoder = ConditionEncoderInference(
@@ -368,10 +361,10 @@ if __name__ == '__main__':
         if args.img_distribution == 'uniform':
             
             # ensure at least one image per condition
-            if num_conditions < args.total_num_imgs:
+            if num_conditions > args.total_num_imgs:
                 imgs_per_condition = 1
             else:
-                imgs_per_condition = args.total_num_imgs // num_conditions
+                imgs_per_condition = args.total_num_imgs / num_conditions
             for cond in dataset_info['all_conditions']:
                 cond['num_imgs'] = int(imgs_per_condition)
 
@@ -425,7 +418,8 @@ if __name__ == '__main__':
         pipeline,
         conditions,
         args.gen_img_path,
-        overwrite_existing=args.overwrite_existing
+        overwrite_existing=args.overwrite_existing,
+        batch_size=args.batch_size
     )
 
     # save a config file with generation settings
