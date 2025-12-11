@@ -17,6 +17,8 @@ import argparse
 import logging
 import math
 import os
+import glob
+import subprocess
 import json
 from typing import Optional
 import shutil
@@ -320,6 +322,11 @@ def parse_args() -> argparse.Namespace:
         help="SNR weighting gamma to be used if rebalancing the loss. Recommended value is 5.0. "
         "More details here: https://arxiv.org/abs/2303.09556.",
     )
+    parser.add_argument("--scale_min",
+        type=float,
+        default=0.9,
+        help="Minimum scale for random resized crop during training.",
+    )
 
     # ---------------------------------------
     # Execution environment
@@ -568,8 +575,7 @@ def main():
     if args.text_mode == "None":
         args.text_mode = None
     global text_mode
-    text_mode = args.text_mode
-    
+    text_mode = args.text_mode    
 
     # either use max_train_steps or num_train_epochs to determine total training steps
     if args.max_train_steps == "None":
@@ -725,14 +731,20 @@ def main():
     
     dataset = dataset.get_dataset_dict()
 
-    scale_min = 0.9
+    scale_min = args.scale_min
+    # check if scale_min is between 0 and 1
+    if scale_min < 0.0 or scale_min > 1.0:
+        raise ValueError("scale_min must be between 0.0 and 1.0")
+
     train_transforms = transforms.Compose(
         [
             transforms.RandomResizedCrop(size=512, scale=(scale_min,1.0)),
             transforms.RandomHorizontalFlip() if args.random_flip else transforms.Lambda(lambda x: x),
             transforms.ToTensor(),
-            transforms.Normalize([0.5, 0.5, 0.5],
-                                 [0.5, 0.5, 0.5])
+            transforms.Normalize([0.67212146, 0.63119322, 0.62765121], # from Adriana, 08.12.2025
+                                 [0.08998639, 0.11100586, 0.12605950])
+            #transforms.Normalize([0.5, 0.5, 0.5],
+            #                     [0.5, 0.5, 0.5])
         ]
     )
 
@@ -1117,10 +1129,47 @@ def main():
     print("================== Training completed ====================")
     print("==========================================================")
 
+    
     # cleanup temporary directories
     shutil.rmtree(args.cache_dir)
 
     accelerator.end_training()
+
+    # extract loss from wandb logs and save to a csv file
+    if args.report_to_wandb:
+        def find_wandb_logs(root):
+            """
+            Find all wandb log files in the given root directory.
+            """
+            extensions = ("*.wandb",)
+            files = []
+            for ext in extensions:
+                files.extend(glob.glob(os.path.join(root, "**", ext), recursive=True))
+            return files
+        
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        script_path = os.path.join(script_dir, "evaluation", "extract_wandb_loss_to_csv.py")
+
+        # get newest wandb log file in args.logging_dir/wandb
+        wandb_log_dir = os.path.join(args.logging_dir, "wandb")
+
+        log_files = find_wandb_logs(wandb_log_dir)
+        if not log_files:
+            print("No wandb log files found. Could not extract loss log.")
+            return
+        log_files = sorted(log_files, key=lambda x: os.path.getctime(x), reverse=True)
+        newest_log_file = log_files[0]
+        input_file = os.path.join(wandb_log_dir, newest_log_file)
+        outdir = args.logging_dir
+
+        cmd = [
+            "python3",
+            script_path,
+            "--input", input_file,
+            "--outdir", outdir
+        ]
+
+        subprocess.run(cmd, check=True)
     
 
 if __name__ == "__main__":
