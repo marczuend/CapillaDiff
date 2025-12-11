@@ -13,4 +13,6 @@ Jinja2
 peft==0.7.0
 xformers
 wandb
+scipy
+torchmetrics[image]
 # bitsandbytes
