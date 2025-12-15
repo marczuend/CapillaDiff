@@ -1,4 +1,4 @@
-![Project Logo](morphodiff_logo.png) 
+![Project Logo](CapillaDiff_logo.png) 
 
 
 This is the official repository of CapillaDiff, a diffusion based generative pipeline to predict high-resolution capillaroscopy images with different conditions.
@@ -14,32 +14,30 @@ Create a new virtual environment (python 3.10.12 was used in our experiments), a
 git clone git@github.com:marczuend/CapillaDiff.git
 
 # install diffusers
-cd CapillaDiff/capilladiff/diffusers
+pip install CapillaDiff/capilladiff/diffusers/.
 
-pip install .
-
-cd examples/text_to_image
-
+# install needed libraries
 pip install -r requirements.txt
 
 # configure accelerator
 accelerate config
 ```
 
-The xformers and wandb (if needed) packages are also required for training and need to be installed in the morphodiff environment. The requirements.txt provides a list of packages and their versions used to run the scripts.
-
 ## Needed Models
 
-CapillaDiff requires several pretrained components to function correctly. You must provide paths to these models when running the pipeline.
+CapillaDiff requires several pretrained components to function correctly. You must provide paths to these models when running the pipeline. To download the Basemodel as well as the Text Encoders and Evaluation models use the provided download script:
+```bash
+python3 download_models.py
+```
 
 ### 1. Stable Diffusion Base Model
 You need a pretrained **Stable Diffusion checkpoint**, such as [**stable-diffusion-v1-4**](https://huggingface.co/CompVis/stable-diffusion-v1-4), which was originally used for training CapillaDiff.  
 
-You can provide:
-- A local folder containing the checkpoint, e.g.: /path/to/stable-diffusion-v1-4
-
 ### 2. Text Encoder and Tokenizer
-CapillaDiff uses **text embeddings** to condition image generation. If you want to use this feature, you must provide local paths to a **CLIPTokenizer** and a **CLIPTextModel**, for example from [**openai/clip-vit-large-patch14**](https://huggingface.co/openai/clip-vit-large-patch14).
+CapillaDiff can use **text embeddings** to condition image generation. If you want to use this feature, you must provide local paths to a **CLIPTokenizer** and a **CLIPTextModel**, for example from [**openai/clip-vit-large-patch14**](https://huggingface.co/openai/clip-vit-large-patch14).
+
+### 3. Evaluation Model
+For the Evaluation we use the Inception V3 model.
 
 ## Recommended folder structure
 
@@ -51,9 +49,9 @@ CapillaDiff/
 └── README.md
 
 models/
-├── stable-diffusion-v1-4/
 ├── capilladiff_checkpoint/
-└── clip-vit-large-patch14/
+├── clip-vit-large-patch14/
+...
 ```
 ## Codebase overview [TO BE DONE]
 
