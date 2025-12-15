@@ -1,8 +1,17 @@
-<img src="CapillaDiff_logo.png" alt="Project Logo" width="200">
+<table>
+  <tr>
+    <td width="30%">
+      <img src="CapillaDiff_logo.png" alt="Project Logo" width="200">  
+    </td>
+    <td>
+      This is the official repository of CapillaDiff, a diffusion based generative pipeline to predict high-resolution capillaroscopy images with different conditions.
+    </td>
+  </tr>
+</table>
 
 
 
-This is the official repository of CapillaDiff, a diffusion based generative pipeline to predict high-resolution capillaroscopy images with different conditions.
+
 
 ---
 
