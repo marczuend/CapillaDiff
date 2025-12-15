@@ -606,13 +606,6 @@ def main():
 
     args = parse_args()
 
-    print(args.max_train_steps is None)
-    print(args.use_cfg)
-    print(args.text_mode is None)
-    print(args.text_mode == "None")
-    print(args.text_mode)
-    exit()
-
     if args.checkpointing_dir is None:
         args.checkpointing_dir = os.path.join(args.output_dir, "checkpoints")
 
