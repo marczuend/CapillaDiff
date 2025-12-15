@@ -41,7 +41,6 @@ done
 # iterate over all models and generate images
 for MODEL_PATH in "${MODEL_PATH_LIST[@]}"; do
     echo "y" | bash "$SCRIPT_DIR/generate_img.sh" "$MODEL_PATH"
-    #bash "$SCRIPT_DIR/generate_img.sh" "$MODEL_PATH"
 done
 
 echo "==============================================================="

@@ -36,7 +36,6 @@ done
 # iterate over all models and generate images
 for GEN_IMG_PATH in "${GEN_IMG_PATH_LIST[@]}"; do
     echo "y" | bash "$SCRIPT_DIR/evaluate_model.sh" "$GEN_IMG_PATH"
-    #bash "$SCRIPT_DIR/generate_img.sh" "$GEN_IMG_PATH"
 done
 
 echo "==============================================================="
