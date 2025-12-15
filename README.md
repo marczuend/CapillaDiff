@@ -4,17 +4,10 @@
       <img src="CapillaDiff_logo.png" alt="Project Logo" width="200">  
     </td>
     <td>
-      
+      This is the official repository of CapillaDiff, a diffusion based generative pipeline to predict high-resolution capillaroscopy images with different conditions.
     </td>
   </tr>
 </table>
-
-<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
-  <img src="CapillaDiff_logo.png" alt="CapillaDiff Logo" width="200" style="flex-shrink: 0;">
-  <div style="max-width: 600px;">
-    This is the official repository of CapillaDiff, a diffusion based generative pipeline to predict high-resolution capillaroscopy images with different conditions.
-  </div>
-</div>
 
 
 
