@@ -129,6 +129,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="The text mode to use for encoding conditions."
     )
+    parser.add_argument("--relevant_columns",
+        type=str,
+        default=None,
+        help="List of relevant columns to use from the metadata file. If None or 'all', all columns are used.",
+    )
     # ---------------------------------------
     # Output / checkpoints
     # ---------------------------------------
@@ -721,14 +726,20 @@ def main():
         weight_decay=args.adam_weight_decay,
         eps=args.adam_epsilon,
     )
- 
+    
     # 6. Get images with labels
+    if (not isinstance(args.relevant_columns, list) and args.relevant_columns is not None):
+        if args.relevant_columns != "all":
+            args.relevant_columns = json.loads(args.relevant_columns)
+    if args.relevant_columns in ("all", None):
+        args.relevant_columns = None
+
     dataset = DatasetLoader(
         img_folder_path = args.img_data_dir,
         metadata_csv_path = args.metadata_file_path,
-        #relevant_columns: list = None
-        )
-    
+        relevant_columns = args.relevant_columns
+    )
+
     dataset = dataset.get_dataset_dict()
 
     scale_min = args.scale_min
@@ -777,14 +788,30 @@ def main():
         return {"pixel_values": pixel_values,
                 "input_ids": input_ids}
 
-    # check if text mode is used
+        # check if text mode is used
     clip = None
     if args.text_mode != "None":
-        # load clip model
-        from transformers import CLIPTokenizer, CLIPTextModel
-        tokenizer = CLIPTokenizer.from_pretrained(args.clip_path)
-        text_encoder = (CLIPTextModel.from_pretrained(args.clip_path)).to(accelerator.device)
-        clip = (tokenizer, text_encoder, accelerator.device)
+        from transformers import AutoConfig
+        config = AutoConfig.from_pretrained(args.clip_path)
+        model_type = config.model_type
+
+        # check what model should be loaded
+        if "clip" in model_type.lower():
+            # load clip model
+            from transformers import CLIPTokenizer, CLIPTextModel
+            tokenizer = CLIPTokenizer.from_pretrained(args.clip_path)
+            text_encoder = (CLIPTextModel.from_pretrained(args.clip_path)).to(accelerator.device)
+            clip = (tokenizer, text_encoder, accelerator.device)
+            print('Loaded CLIP text encoder')
+        elif "distilbert" in model_type.lower():
+            # load DistilBERT model
+            from transformers import DistilBertTokenizer, DistilBertModel
+            tokenizer = DistilBertTokenizer.from_pretrained(args.clip_path)
+            text_encoder = DistilBertModel.from_pretrained(args.clip_path).to(accelerator.device)
+            clip = (tokenizer, text_encoder, accelerator.device)
+            print('Loaded DistilBERT text encoder')
+        else:
+            raise ValueError("Unknown clip model. Please use a CLIP or BERT model.")
 
     # DataLoaders creation:
     train_dataloader = torch.utils.data.DataLoader(
