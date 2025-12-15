@@ -9,21 +9,21 @@ cd "$SCRIPT_DIR"
 ##################################################################################
 
 # Paths and names
-MODEL_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/experiments/bool_encoding_cfg_off_scalemin_0_7/checkpoints/checkpoint-10005"
+MODEL_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/experiments/textmode_simple_level_encoding_cfg_on_BERT_giant_capillaries_run_1/checkpoints/checkpoint-10005"
 EXPERIMENT="None"      # if "None", the name of the used model checkpoint will be used
 METADATA_FILE="None"  # if "None", the metadata file used during training will be used
 
-GEN_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/generated_imgs/augmentation"  # path to save generated images
+GEN_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/generated_imgs/evaluation"  # path to save generated images
 OVERWRITE_EXISTING=True  # set to True to overwrite existing images in the output directory, False otherwise
 
 CONDITION_LIST_PATH="None"  # if "None", no special conditions will be used for image generation
 CONDITIONS="None"           # if "None", all conditions in CONDITION_LIST_PATH will be used
 SEED=random                 # set to "random" for random seed, or an integer for a fixed seed
 
-BATCH_SIZE=8               # set the batch size for image generation
+BATCH_SIZE=6               # set the batch size for image generation
 NUM_GEN_IMG=10 # Set the number of images you want to generate for each condition
-MAX_NUM_GEN_IMG=22255  # Maximum number of images to generate in total, if [>0], NUM_GEN_IMG will be adjusted accordingly
-IMG_DISTRIBUTION="inverse_proportional"     # set to "uniform", "proportional" or "inverse_proportional" for different image distribution strategies
+MAX_NUM_GEN_IMG=5000  # Maximum number of images to generate in total, if [>0], NUM_GEN_IMG will be adjusted accordingly
+IMG_DISTRIBUTION="uniform"     # set to "uniform", "proportional" or "inverse_proportional" for different image distribution strategies
                                             # only used if MAX_NUM_GEN_IMG > 0
 MODEL_TYPE="conditional" # set "conditional" for Conditional SD, and "naive" for unconditional SD
 

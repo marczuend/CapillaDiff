@@ -211,6 +211,11 @@ def parse_args():
                         type=int,
                         default=1,
                         help="batch size for image generation.")
+    parser.add_argument('--relevant_columns',
+        type=list,
+        default=None,
+        help="List of relevant columns to use from the metadata file. If None or 'all', all columns are used.",
+    )
 
     return parser.parse_args()
 
@@ -246,6 +251,11 @@ if __name__ == '__main__':
             args.text_mode = None
         if args.text_mode is not None:
             args.clip_path = training_config.get('clip_path', None)
+        if args.relevant_columns is None:
+            try:
+                args.relevant_columns = training_config.get('relevant_columns', None)
+            except:
+                args.relevant_columns = None
 
     except Exception as e:
         raise Exception(f"Error reading training_config.json: {e}")
@@ -280,15 +290,30 @@ if __name__ == '__main__':
         args.model_checkpoint, subfolder="scheduler")
     print('Loaded noise_scheduler')
 
-    # check if text mode is used
+     # check if text mode is used
     clip = None
-    if args.text_mode is not None:
-        # load clip model
-        from transformers import CLIPTokenizer, CLIPTextModel
-        clip_tokenizer = CLIPTokenizer.from_pretrained(args.clip_path, local_files_only=True)
-        clip_text_encoder = (CLIPTextModel.from_pretrained(args.clip_path, local_files_only=True)).to(device)
-        clip = (clip_tokenizer, clip_text_encoder, device)
-        print('Loaded CLIP model for text encoding')
+    if args.text_mode != "None" and args.text_mode is not None:
+        from transformers import AutoConfig
+        config = AutoConfig.from_pretrained(args.clip_path)
+        model_type = config.model_type
+
+        # check what model should be loaded
+        if "clip" in model_type.lower():
+            # load clip model
+            from transformers import CLIPTokenizer, CLIPTextModel
+            tokenizer = CLIPTokenizer.from_pretrained(args.clip_path)
+            text_encoder = (CLIPTextModel.from_pretrained(args.clip_path)).to(device)
+            clip = (tokenizer, text_encoder, device)
+            print('Loaded CLIP text encoder')
+        elif "distilbert" in model_type.lower():
+            # load DistilBERT model
+            from transformers import DistilBertTokenizer, DistilBertModel
+            tokenizer = DistilBertTokenizer.from_pretrained(args.clip_path)
+            text_encoder = DistilBertModel.from_pretrained(args.clip_path).to(device)
+            clip = (tokenizer, text_encoder, device)
+            print('Loaded DistilBERT text encoder')
+        else:
+            raise ValueError("Unknown clip model. Please use a CLIP or BERT model.")
 
     # dataset_id, cluster, model
     custom_encoder = ConditionEncoderInference(
@@ -311,11 +336,16 @@ if __name__ == '__main__':
     pipeline.to(device)
 
     # Get images with labels
+    if not isinstance(args.relevant_columns, list) and args.relevant_columns is not None:
+        args.relevant_columns = json.loads(args.relevant_columns)
+    if args.relevant_columns in ("all", None):
+        args.relevant_columns = None
+
     dataset = DatasetLoader(
         img_folder_path = "", # not needed for image generation
         metadata_csv_path = args.metadata_file_path,
-        #relevant_columns: list = None
-        )
+        relevant_columns = args.relevant_columns
+    )
 
     dataset_info = dataset.get_dataset_info(custom_encoder)
 

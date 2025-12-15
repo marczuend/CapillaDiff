@@ -3,25 +3,27 @@
 ##################################################################################
 ############ NEEDED VARIABLES TO SET BEFORE RUNNING THE SCRIPT  ##################
 ##################################################################################
-export EXPERIMENT="auto"   # set the experiment name or "auto" for automatic naming
+export EXPERIMENT="textmode_simple_level_encoding_cfg_on_CLIP_giant_capillaries_run_1"   # set the experiment name or "auto" for automatic naming
 export SD_TYPE="conditional" # set "conditional" for training CapillaDiff, and "naive" for training Stable Diffuison
+export RELEVANT_COLUMNS='["giant_capillaries"]' # set the relevant columns to use from the metadata file. If "all", all columns will be used
+                                # format for custom columns: '["Column1", "Column2", ...]'
 
-export CONVERT_TO_BOOLEAN=1  # set to 1 to convert conditions to boolean embeddings, 0 otherwise
-export USE_TEXT_MODE="None"        # set to "simple" to use simple text encoding or "None" for no text encoding
+export CONVERT_TO_BOOLEAN=0  # set to 1 to convert conditions to boolean embeddings, 0 otherwise
+export USE_TEXT_MODE="simple"        # set to "simple" to use simple text encoding or "None" for no text encoding
 
-export NUM_TRAIN_EPOCHS=5          # 5
-export MAX_TRAIN_STEPS=100     # "None" if provided MAX_TRAIN_STEPS, this will override NUM_TRAIN_EPOCHS
-export USE_CFG=0               # set to 1 to use classifier-free guidance during training
+export NUM_TRAIN_EPOCHS=5         # 5
+export MAX_TRAIN_STEPS=None     # "None" if provided MAX_TRAIN_STEPS, this will override NUM_TRAIN_EPOCHS
+export USE_CFG=1               # set to 1 to use classifier-free guidance during training
 export CFG_TRAINING_PROB=0.1      # set the probability of using classifier-free guidance
 
-export BATCH_SIZE=2
+export BATCH_SIZE=6
 export GRADIENT_ACCUMULATION_STEPS=1
 export LEARNING_RATE=1e-05
 export MIXED_PRECISION="fp16"      # set to "fp16" or "bf16" for mixed precision training. 
 export SCALE_MIN=0.9               # set the minimum scale for random resized cropping during training (between 0 and 1)
 
 ## set path to save the experiment outputs (models, logs, tmp files, etc.)
-export SAVE_DIR="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/debug"   # if "None", the home directory will be used
+export SAVE_DIR="/cluster/work/medinfmk/capillaroscopy/CapillaDiff"   # if "None", the home directory will be used
 
 ## set the path to the training data directory. Folder contents must follow the structure described in
 ## https://github.com/marczuend/CapillaDiff/blob/main/README.md#data-preparation
@@ -32,9 +34,9 @@ export METADATA_FILE="/cluster/customapps/medinfmk/mazuend/CapillaDiff/metadata/
 
 
 ## set the path to the pretrained model, which could be either pretrained Stable Diffusion, or a pretrained CapillaDiff model
-export MODEL_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/test/CapillaDiff_base"
+export MODEL_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/CapillaDiff_base"
 #export MODEL_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/CapillaDiff_base"
-export CLIP_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/test/clip-vit-large-patch14"
+export CLIP_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/clip-vit-large-patch14"
 
 ##################################################################################
 ######################### END OF VARIABLE SETTINGS ###############################
@@ -180,7 +182,7 @@ is_CUDA_AVAILABLE=$(python -c 'import torch; print(torch.cuda.is_available())')
 
 echo "================= Setup Info =================================="
 printf "%-20s : %s\n" "Experiment name" "$EXPERIMENT"
-printf "%-20s : %s\n" "SD Type" "$SD_TYPE"
+printf "%-20s : %s\n" "Relevant columns" "$RELEVANT_COLUMNS"
 printf "%-20s : %s\n" "Model directory" "$MODEL_PATH"
 echo "================= Data Info ==================================="
 printf "%-20s : %s\n" "Image dir" "$IMG_DIR"
@@ -262,4 +264,5 @@ accelerate launch --mixed_precision=$MIXED_PRECISION $SCRIPT_DIR/../train.py \
 --cfg_training_prob=$CFG_TRAINING_PROB \
 --text_mode=$USE_TEXT_MODE \
 --clip_path=$CLIP_PATH \
---scale_min=$SCALE_MIN
+--scale_min=$SCALE_MIN \
+--relevant_columns="$RELEVANT_COLUMNS"
