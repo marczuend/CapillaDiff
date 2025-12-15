@@ -20,7 +20,7 @@ def find_capilladiff(start_path):
 
     return None
 
-def internet_available(save_dir):
+def check_internet_connection(save_dir):
     """
     Tests if HuggingFace Hub is reachable by attempting to download
     a tiny known file. Does NOT store the file permanently.
@@ -144,7 +144,7 @@ def main():
 
         # Go one level up to CapillaDiff main directory
         parent_dir = os.path.dirname(capilladiff_main_dir)
-        args.save_dir = os.path.join(parent_dir, "models", "test")
+        args.save_dir = os.path.join(parent_dir, "models")
 
     # ask user if saving directory is correct
     print(f"Models will be saved to: {args.save_dir}")
@@ -156,8 +156,8 @@ def main():
     # Ensure save directory exists, if not, create it
     os.makedirs(args.save_dir, exist_ok=True)
 
-    # Check internet connectivity to HuggingFace Hub
-    hf_internet_available(args.save_dir)
+    # Check internet connectivity
+    check_internet_connection(args.save_dir)
 
 
 
@@ -187,6 +187,19 @@ def main():
         print(" /n")
         print(f"CLIP model downloaded and saved to {clip_model_save_path}")
 
+    # Get Medical BERT model from HuggingFace Hub
+    folder_name="ClinicalBERT"
+    if os.path.exists(os.path.join(args.save_dir, folder_name)):
+        print("Medical BERT model already exist. Skipping download.")
+    else:
+        print("Downloading Medical BERT model...")
+        medical_bert_model_save_path = os.path.join(args.save_dir, folder_name)
+        snapshot_download(
+            repo_id="medicalai/" + folder_name,
+            local_dir=medical_bert_model_save_path
+        )
+        print(" /n")
+        print(f"Medical BERT model downloaded and saved to {medical_bert_model_save_path}")
 
     # delete ALL cache folders
     print("Cleaning up cache folders...")
