@@ -13,7 +13,7 @@ MODEL_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/experiments/textmo
 EXPERIMENT="auto"      # if "auto", the name of the used model checkpoint will be used
 METADATA_FILE="auto"  # if "None", the metadata file used during training will be used
 
-GEN_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/generated_imgs/TEST_DEBUG"  # path to save generated images
+GEN_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/generated_imgs"  # path to save generated images
 OVERWRITE_EXISTING=True  # set to True to overwrite existing images in the output directory, False otherwise
 SEED=random                 # set to "random" for random seed, or an integer for a fixed seed
 
