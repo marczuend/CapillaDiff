@@ -1,4 +1,5 @@
-![Project Logo](CapillaDiff_logo.png) 
+<img src="CapillaDiff_logo.png" alt="Project Logo" width="200">
+
 
 
 This is the official repository of CapillaDiff, a diffusion based generative pipeline to predict high-resolution capillaroscopy images with different conditions.
@@ -17,7 +18,7 @@ git clone git@github.com:marczuend/CapillaDiff.git
 pip install CapillaDiff/capilladiff/diffusers/.
 
 # install needed libraries
-pip install -r requirements.txt
+pip install -r CapillaDiff/requirements.txt
 
 # configure accelerator
 accelerate config
@@ -27,7 +28,7 @@ accelerate config
 
 CapillaDiff requires several pretrained components to function correctly. You must provide paths to these models when running the pipeline. To download the Basemodel as well as the Text Encoders and Evaluation models use the provided download script:
 ```bash
-python3 download_models.py
+python3 CapillaDiff/download_models.py
 ```
 
 ### 1. Stable Diffusion Base Model
