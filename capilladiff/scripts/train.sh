@@ -1,19 +1,21 @@
 #!/bin/bash
-
 ##################################################################################
 ############ NEEDED VARIABLES TO SET BEFORE RUNNING THE SCRIPT  ##################
 ##################################################################################
-export EXPERIMENT="textmode_simple_level_encoding_cfg_on_CLIP_giant_capillaries_run_1"   # set the experiment name or "auto" for automatic naming
-export SD_TYPE="conditional" # set "conditional" for training CapillaDiff, and "naive" for training Stable Diffuison
-export RELEVANT_COLUMNS='["giant_capillaries"]' # set the relevant columns to use from the metadata file. If "all", all columns will be used
-                                # format for custom columns: '["Column1", "Column2", ...]'
+export EXPERIMENT="auto"   # set the experiment name or "auto" for automatic naming
+export SD_TYPE="conditional"     # set "conditional" for using embedding based on metadata, "naive" for no conditioning
+
+# set the relevant columns to use from the metadata file. If "all", all columns will be used
+export RELEVANT_COLUMNS='["dysangiogenesis","enlarged_capillaries",
+                          "giant_capillaries","capillary_loss",
+                          "microhemorrhages","scleroderma_pattern"]'
 
 export CONVERT_TO_BOOLEAN=0  # set to 1 to convert conditions to boolean embeddings, 0 otherwise
-export USE_TEXT_MODE="simple"        # set to "simple" to use simple text encoding or "None" for no text encoding
+export USE_TEXT_MODE=None  # set to "simple" to use simple text encoding or "None" for no text encoding
 
-export NUM_TRAIN_EPOCHS=5         # 5
-export MAX_TRAIN_STEPS=None     # "None" if provided MAX_TRAIN_STEPS, this will override NUM_TRAIN_EPOCHS
-export USE_CFG=1               # set to 1 to use classifier-free guidance during training
+export NUM_TRAIN_EPOCHS=5
+export MAX_TRAIN_STEPS=None # "None" if provided MAX_TRAIN_STEPS, this will override NUM_TRAIN_EPOCHS
+export USE_CFG=False               # set to 1 to use classifier-free guidance during training
 export CFG_TRAINING_PROB=0.1      # set the probability of using classifier-free guidance
 
 export BATCH_SIZE=6
@@ -27,15 +29,12 @@ export SAVE_DIR="/cluster/work/medinfmk/capillaroscopy/CapillaDiff"   # if "None
 
 ## set the path to the training data directory. Folder contents must follow the structure described in
 ## https://github.com/marczuend/CapillaDiff/blob/main/README.md#data-preparation
-#export IMG_DIR="/cluster/customapps/medinfmk/mazuend/CapillaDiff/pseudo_data/images"
-#export METADATA_FILE="/cluster/customapps/medinfmk/mazuend/CapillaDiff/pseudo_data/metadata.csv"
 export IMG_DIR="/cluster/work/medinfmk/capillaroscopy/content/images"
 export METADATA_FILE="/cluster/customapps/medinfmk/mazuend/CapillaDiff/metadata/metadata_CapillaDiff_training.csv"
 
 
 ## set the path to the pretrained model, which could be either pretrained Stable Diffusion, or a pretrained CapillaDiff model
 export MODEL_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/CapillaDiff_base"
-#export MODEL_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/CapillaDiff_base"
 export CLIP_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/clip-vit-large-patch14"
 
 ##################################################################################
@@ -64,11 +63,7 @@ if [ "$EXPERIMENT" == "auto" ]; then
 
     EXPERIMENT="${EXPERIMENT}encoding_"
 
-    if [ $USE_CFG -eq 1 ]; then
-        EXPERIMENT="${EXPERIMENT}cfg_on_"
-    else
-        EXPERIMENT="${EXPERIMENT}cfg_off_"
-    fi
+    EXPERIMENT="${EXPERIMENT}cfg_${USE_CFG}_"
 
     EXPERIMENT="${EXPERIMENT}run_1"
 
@@ -110,7 +105,7 @@ if [[ -d "$OUTPUT_DIR" ]] && [[ "$(ls -A "$OUTPUT_DIR")" ]]; then
     echo "  y = continue and overwrite"
     echo "  c = create a new folder"
     echo "  a = abort"
-    read -p "Choose (y/n/c): " -n 1 -r
+    read -p "Choose (y/c/a): " -n 1 -r
     echo    # new line
 
     if [[ $REPLY =~ ^[Aa]$ ]]; then
@@ -258,7 +253,7 @@ accelerate launch --mixed_precision=$MIXED_PRECISION $SCRIPT_DIR/../train.py \
 --cache_dir=$TMPDIR \
 --enable_xformers_memory_efficient_attention \
 --resolution=512 \
---use_ema \
+--use_ema=True \
 --convert_to_boolean=$CONVERT_TO_BOOLEAN \
 --use_cfg=$USE_CFG \
 --cfg_training_prob=$CFG_TRAINING_PROB \
