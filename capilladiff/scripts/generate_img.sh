@@ -10,14 +10,11 @@ cd "$SCRIPT_DIR"
 
 # Paths and names
 MODEL_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/experiments/textmode_simple_level_encoding_cfg_on_BERT_giant_capillaries_run_1/checkpoints/checkpoint-10005"
-EXPERIMENT="None"      # if "None", the name of the used model checkpoint will be used
-METADATA_FILE="None"  # if "None", the metadata file used during training will be used
+EXPERIMENT="auto"      # if "auto", the name of the used model checkpoint will be used
+METADATA_FILE="auto"  # if "None", the metadata file used during training will be used
 
-GEN_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/generated_imgs/evaluation"  # path to save generated images
+GEN_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/generated_imgs/TEST_DEBUG"  # path to save generated images
 OVERWRITE_EXISTING=True  # set to True to overwrite existing images in the output directory, False otherwise
-
-CONDITION_LIST_PATH="None"  # if "None", no special conditions will be used for image generation
-CONDITIONS="None"           # if "None", all conditions in CONDITION_LIST_PATH will be used
 SEED=random                 # set to "random" for random seed, or an integer for a fixed seed
 
 BATCH_SIZE=6               # set the batch size for image generation
@@ -36,7 +33,7 @@ if [ $# -ge 1 ]; then
     MODEL_PATH=$1
 fi
 
-if [ "$EXPERIMENT" == "None" ]; then
+if [ "$EXPERIMENT" == "auto" ]; then
     # extract experiment name from model path
     MODEL_NAME=$(echo "$MODEL_PATH" | sed -n 's|.*/experiments/\([^/]*\)/.*|\1|p')
     CHECKPOINT_NUMBER=$(basename "$MODEL_PATH" | sed 's|checkpoint-||')
@@ -74,18 +71,12 @@ fi
 echo "================= Image Generation Settings ==================="
 printf "%-30s : %s\n" "Experiment name" "$EXPERIMENT"
 printf "%-30s : %s\n" "Model path" "$MODEL_PATH"
-if [ "$METADATA_FILE" == "None" ]; then
+if [ "$METADATA_FILE" == "auto" ]; then
     printf "%-30s : %s\n" "Metadata file path" "Using metadata file from training"
 else
     printf "%-30s : %s\n" "Metadata file path" "$METADATA_FILE"
 fi
-if [ "$CONDITION_LIST_PATH" == "None" ]; then
-    printf "%-30s : %s\n" "Condition list path" "Using all conditions from metadata file"
-else
-    printf "%-30s : %s\n" "Condition list path" "$CONDITION_LIST_PATH"
-fi
 printf "%-30s : %s\n" "Generated images path" "$GEN_IMG_PATH"
-printf "%-30s : %s\n" "Condition list path" "$CONDITION_LIST_PATH"
 # if MAX_NUM_GEN_IMG > 0, print MAX_NUM_GEN_IMG else print NUM_GEN_IMG
 if [ "$MAX_NUM_GEN_IMG" -gt 0 ]; then
     printf "%-30s : %s\n" "Number of generated images" "$MAX_NUM_GEN_IMG"
@@ -113,7 +104,6 @@ python ../evaluation/generate_img.py \
 --experiment $EXPERIMENT \
 --model_checkpoint $MODEL_PATH \
 --model_type $MODEL_TYPE \
---condition_list_address $CONDITION_LIST_PATH \
 --gen_img_path $GEN_IMG_PATH \
 --num_imgs $NUM_GEN_IMG \
 --total_num_imgs $MAX_NUM_GEN_IMG \

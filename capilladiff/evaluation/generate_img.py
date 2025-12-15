@@ -21,24 +21,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from CapillaDiff_encoder import ConditionEncoderInference, ConditionEncoder, DictToListEncoder
 from CapillaDiff_dataloader import DatasetLoader
 
-def str2bool(v):
-    """Convert string to boolean.
-
-    Args:
-        v (str): string to convert to boolean"""
-
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('True', 'TRUE', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('False', 'FALSE', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
-
-    return
-
-
 class CapillaDiffusionPipeline(StableDiffusionPipeline):
     def __init__(self,
                  vae,
@@ -96,6 +78,73 @@ def set_seed(seed):
 
     return
 
+def get_num_imgs_per_condition(args, dataset_info):
+    """Decide on how many images to generate per condition based on the specified distribution.
+    Args:
+        args: command line arguments
+        dataset_info: information about the dataset and conditions
+    """
+
+    def allocate_counts(fractional_values, total_count):
+        """
+        Convert fractional allocation values into integers whose sum equals total_count.
+        Uses the 'largest remainder method'.
+        
+        fractional_values: list of floats (weights * target_total)
+        total_count: final number of items to allocate
+
+        Returns: list of integers
+        """
+
+        # Step 1 — floor values
+        base = [int(x) for x in fractional_values]
+
+        # Step 2 — compute remaining images to distribute
+        remainder = total_count - sum(base)
+        if remainder < 0:
+            raise ValueError("Total of floored values exceeds total_count, cannot allocate.")
+
+        # Step 3 — compute fractional remainders
+        fracs = [(x - int(x), idx) for idx, x in enumerate(fractional_values)]
+
+        # Step 4 — give leftover counts to highest fractional parts
+        fracs.sort(reverse=True)  # highest remainder first
+        for i in range(remainder):
+            idx = fracs[i][1]
+            base[idx] += 1
+
+        return base
+    
+    num_conditions = len(dataset_info['all_conditions'])
+    if args.img_distribution == 'uniform':
+        
+        # ensure at least one image per condition
+        if num_conditions > args.total_num_imgs:
+            imgs_per_condition = 1
+        else:
+            imgs_per_condition = args.total_num_imgs / num_conditions
+        for cond in dataset_info['all_conditions']:
+            cond['num_imgs'] = int(imgs_per_condition)
+
+    elif args.img_distribution == 'proportional':
+        fractional = [cond['relative_frequency'] * args.total_num_imgs for cond in dataset_info['all_conditions']]
+        normalized_fractional = [x / sum(fractional) * args.total_num_imgs for x in fractional]
+
+        allocations = allocate_counts(normalized_fractional, args.total_num_imgs)
+
+        for cond, count in zip(dataset_info['all_conditions'], allocations):
+            cond['num_imgs'] = count
+
+    elif args.img_distribution == 'inverse_proportional':
+        # calculate inverse proportional frequencies
+        total_inverse_freq = [1.0 / cond['relative_frequency'] for cond in dataset_info['all_conditions']]
+        fractional = [(freq / num_conditions) * args.total_num_imgs for freq in total_inverse_freq]
+        normalized_fractional = [x / sum(fractional) * args.total_num_imgs for x in fractional]
+
+        allocations = allocate_counts(normalized_fractional, args.total_num_imgs)
+
+        for cond, count in zip(dataset_info['all_conditions'], allocations):
+            cond['num_imgs'] = count
 
 def load_model_and_generate_images(pipeline, conditions,
                                    gen_img_path, overwrite_existing=False, batch_size=1):
@@ -158,6 +207,36 @@ def load_model_and_generate_images(pipeline, conditions,
                 pbar.update(batch_size_eff)
                 imgs = os.listdir(img_series_dir)
 
+def str2bool(v):
+    """Convert string to boolean.
+
+    Args:
+        v (str): string to convert to boolean"""
+
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('True', 'TRUE', 'true', 't', 'y', '1', 'on', 'ON', 'yes', 'Yes'):
+        return True
+    elif v.lower() in ('False', 'FALSE', 'false', 'f', 'n', '0', 'off', 'OFF', 'no', 'No'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+    return
+
+def json2list(v):
+    """Convert json string to list.
+
+    Args:
+        v (str): string to convert to list"""
+
+    if (not isinstance(v, list) and v is not None):
+        if v != "all":
+            v = json.loads(v)
+    if v in ("all", None):
+        v = None
+
+    return v
 
 def parse_args():
     parser = argparse.ArgumentParser(description="CapillaDiff Image Generation")
@@ -173,14 +252,12 @@ def parse_args():
                         default=None,
                         help="whether to convert condition to boolean embedding. is given in training_config.json of trained model")
     parser.add_argument('--text_mode',
-                        default="",
+                        type=str,
+                        default="auto",
                         help="text mode used during training. is given in training_config.json of trained model")
     parser.add_argument('--clip_path',
                         default=None,
                         help="path to the CLIP model used for text encoding.")
-    parser.add_argument('--condition_list_address',
-                        required=True,
-                        help="a file with a list of all condition combinations")
     parser.add_argument('--gen_img_path', 
                         default=None,
                         help="path to save generated images")
@@ -197,7 +274,8 @@ def parse_args():
     parser.add_argument('--experiment',
                         required=True,
                         help="experiment name")
-    parser.add_argument('--model_type', default='conditional',
+    parser.add_argument('--model_type',
+                        default='conditional',
                         help="model type: conditional or naive")
     parser.add_argument('--overwrite_existing',
                         type=str2bool, nargs='?',
@@ -211,10 +289,10 @@ def parse_args():
                         type=int,
                         default=1,
                         help="batch size for image generation.")
-    parser.add_argument('--relevant_columns',
-        type=list,
-        default=None,
-        help="List of relevant columns to use from the metadata file. If None or 'all', all columns are used.",
+    parser.add_argument("--relevant_columns",
+                        type=json2list, nargs='?',
+                        default=None,
+                        help="List of relevant columns to use from the metadata file. If None or 'all', all columns are used.",
     )
 
     return parser.parse_args()
@@ -226,7 +304,6 @@ if __name__ == '__main__':
     # enable reproducibility
     if args.seed == 'random':
         args.seed = random.randint(0, 1000000)
-        #print(f"Using random seed: {args.seed}")
     else:
         args.seed = int(args.seed)
     set_seed(args.seed)
@@ -239,27 +316,28 @@ if __name__ == '__main__':
             'training_config.json')
         with open(model_config_path, 'r') as f:
             training_config = json.load(f)
-        
 
         if args.convert_to_boolean is None:
             args.convert_to_boolean = training_config.get('convert_to_boolean', False)
-        if args.metadata_file_path == "None" or args.metadata_file_path is None:
+        if args.metadata_file_path == "auto" or args.metadata_file_path is None:
             args.metadata_file_path = training_config.get('metadata_file_path', None)
-        if  args.text_mode == "":
+        if  args.text_mode == "auto":
             args.text_mode = training_config.get('text_mode', None)
         if args.text_mode == "None" or args.text_mode is None:
             args.text_mode = None
-        if args.text_mode is not None:
+        else:
             args.clip_path = training_config.get('clip_path', None)
         if args.relevant_columns is None:
             try:
                 args.relevant_columns = training_config.get('relevant_columns', None)
+                args.relevant_columns = json2list(args.relevant_columns)
             except:
                 args.relevant_columns = None
 
     except Exception as e:
-        raise Exception(f"Error reading training_config.json: {e}")
+        raise Exception(f"Couldn't find training_config.json: {e}")
 
+    # set generated images path
     if args.gen_img_path is None:
         args.gen_img_path = os.path.join(
             os.path.expanduser('~'),
@@ -290,7 +368,7 @@ if __name__ == '__main__':
         args.model_checkpoint, subfolder="scheduler")
     print('Loaded noise_scheduler')
 
-     # check if text mode is used
+    # check if text mode is used
     clip = None
     if args.text_mode != "None" and args.text_mode is not None:
         from transformers import AutoConfig
@@ -322,7 +400,7 @@ if __name__ == '__main__':
         text_mode=args.text_mode,
         clip=clip
     )
-    print('Loaded custom_text_encoder')
+    print('Loaded custom_encoder')
 
     # Initialize your custom pipeline
     pipeline = CapillaDiffusionPipeline(
@@ -336,11 +414,6 @@ if __name__ == '__main__':
     pipeline.to(device)
 
     # Get images with labels
-    if not isinstance(args.relevant_columns, list) and args.relevant_columns is not None:
-        args.relevant_columns = json.loads(args.relevant_columns)
-    if args.relevant_columns in ("all", None):
-        args.relevant_columns = None
-
     dataset = DatasetLoader(
         img_folder_path = "", # not needed for image generation
         metadata_csv_path = args.metadata_file_path,
@@ -354,70 +427,9 @@ if __name__ == '__main__':
         # add column with num_imgs per condition
         for cond in dataset_info['all_conditions']:
             cond['num_imgs'] = int(args.num_imgs)
-
     else:
-
-        def allocate_counts(fractional_values, total_count):
-            """
-            Convert fractional allocation values into integers whose sum equals total_count.
-            Uses the 'largest remainder method'.
-            
-            fractional_values: list of floats (weights * target_total)
-            total_count: final number of items to allocate
-
-            Returns: list of integers
-            """
-
-            # Step 1 — floor values
-            base = [int(x) for x in fractional_values]
-
-            # Step 2 — compute remaining images to distribute
-            remainder = total_count - sum(base)
-            if remainder < 0:
-                raise ValueError("Total of floored values exceeds total_count, cannot allocate.")
-
-            # Step 3 — compute fractional remainders
-            fracs = [(x - int(x), idx) for idx, x in enumerate(fractional_values)]
-
-            # Step 4 — give leftover counts to highest fractional parts
-            fracs.sort(reverse=True)  # highest remainder first
-            for i in range(remainder):
-                idx = fracs[i][1]
-                base[idx] += 1
-
-            return base
+        get_num_imgs_per_condition(args, dataset_info)
         
-        num_conditions = len(dataset_info['all_conditions'])
-        if args.img_distribution == 'uniform':
-            
-            # ensure at least one image per condition
-            if num_conditions > args.total_num_imgs:
-                imgs_per_condition = 1
-            else:
-                imgs_per_condition = args.total_num_imgs / num_conditions
-            for cond in dataset_info['all_conditions']:
-                cond['num_imgs'] = int(imgs_per_condition)
-
-        elif args.img_distribution == 'proportional':
-            fractional = [cond['relative_frequency'] * args.total_num_imgs for cond in dataset_info['all_conditions']]
-            normalized_fractional = [x / sum(fractional) * args.total_num_imgs for x in fractional]
-
-            allocations = allocate_counts(normalized_fractional, args.total_num_imgs)
-
-            for cond, count in zip(dataset_info['all_conditions'], allocations):
-                cond['num_imgs'] = count
-
-        elif args.img_distribution == 'inverse_proportional':
-            # calculate inverse proportional frequencies
-            total_inverse_freq = [1.0 / cond['relative_frequency'] for cond in dataset_info['all_conditions']]
-            fractional = [(freq / num_conditions) * args.total_num_imgs for freq in total_inverse_freq]
-            normalized_fractional = [x / sum(fractional) * args.total_num_imgs for x in fractional]
-
-            allocations = allocate_counts(normalized_fractional, args.total_num_imgs)
-
-            for cond, count in zip(dataset_info['all_conditions'], allocations):
-                cond['num_imgs'] = count
-
     columns_to_keep = dataset.get_relevant_columns() + ['condition_name', 'num_imgs']
     conditions = [
         {col: cond[col] for col in columns_to_keep}
@@ -430,7 +442,6 @@ if __name__ == '__main__':
         for col in dataset.get_relevant_columns():
             conditions[0][col] = 1.0
         conditions[0]['condition_name'] = 'naive'
-    
     elif args.model_type != 'conditional':
         raise Exception("Model type not recognized.")
 
@@ -458,7 +469,6 @@ if __name__ == '__main__':
         'metadata_file_path': args.metadata_file_path,
         'convert_to_boolean': args.convert_to_boolean,
         'text_mode': args.text_mode,
-        'condition_list_address': args.condition_list_address,
         'gen_img_path': args.gen_img_path,
         'num_imgs': args.num_imgs,
         'total_num_imgs': args.total_num_imgs,
