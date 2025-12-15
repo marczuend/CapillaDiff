@@ -66,7 +66,15 @@ class DatasetLoader(Dataset):
         return self.metadata.columns.tolist(), self.metadata.iloc[0].tolist()
     
     def get_dataset_info(self, encoder: ConditionEncoderInference):
-        """Returns a dictionary statistics about the dataset."""
+        """Returns a dictionary statistics about the dataset.
+        Returns:
+            info (dict): dictionary containing dataset statistics
+                        - total_samples: total number of samples in the dataset
+                        - all_conditions: list of dictionaries, each containing:
+                            - condition_name: name of the condition combination
+                            - frequency: absolute frequency of the condition combination
+                            - relative_frequency: relative frequency of the condition combination
+                            - relevant columns with their values for that condition combination"""
         info = {}
         
         # Total number of samples
