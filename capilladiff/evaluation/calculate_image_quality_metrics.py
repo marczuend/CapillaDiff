@@ -211,11 +211,11 @@ def calculate_metrics(ref_imgs, gen_imgs, eval_model, batch_size, use_official=T
 
     return fid_score, kid_mean, kid_std
 
-def evaluate_model(ref_img_path, gen_img_path, eval_model, batch_size, sub_set_size=None, kid_subset_size=1000,
+def evaluate_model(ref_images, gen_img_path, eval_model, batch_size, sub_set_size=None, kid_subset_size=1000,
                    use_official=True, use_custom=False):
     """Evaluate a single model by calculating FID and KID.
     Args:
-        ref_img_path (str): path to the reference images
+        ref_images (list): list of paths to reference images
         gen_img_path (str): path to the generated images
         eval_model (torch.nn.Module): evaluation model
         batch_size (int): batch size for evaluation
@@ -229,7 +229,6 @@ def evaluate_model(ref_img_path, gen_img_path, eval_model, batch_size, sub_set_s
     """
 
     # load paths to images
-    ref_imgs = find_images(ref_img_path)
     model_imgs = find_images(gen_img_path)
 
     # compare number of images
@@ -271,6 +270,9 @@ def parse_args():
     parser.add_argument('--ref_img_path',
                         required=True,
                         help="directory address of real images")
+    parser.add_argument('--metadata_file',
+                        required=True,
+                        help="path to the metadata CSV file for which reference images inside ref_img_path to use")
     parser.add_argument('--gen_img_path',
                         required=True,
                         help="directory address of the generated images")
@@ -321,6 +323,24 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # check if the metafile_name contains the string "val"
+    if not "val" in args.metadata_file and args.metadata_file != "None":
+        # print warning
+        print("WARNING: Are you sure the metadata file is for validation images? (y/n)")
+        ans = input()
+        if ans.lower() != 'y':
+            print("Exiting...")
+            return
+
+    # load metafile information to filter reference images
+    ref_images = []
+    if args.metadata_file == "None":
+        ref_images = find_images(args.ref_img_path)
+    else:
+        metadata_df = pd.read_csv(args.metadata_file)
+        valid_filenames = set(metadata_df['filename'].tolist())
+        ref_images = [os.path.join(args.ref_img_path, f) for f in valid_filenames if f in metadata_df['filename'].values]
+
     if args.use_official is True:
         # Set TORCH_HOME to the directory containing the Inception-v3 weights for official FID/KID calculation
         torch_temp_dir = os.path.abspath(args.eval_model_path)
@@ -357,7 +377,7 @@ def main():
             raise NotImplementedError(f"Evaluation model {weight_file} not implemented.")
 
     metrics = evaluate_model(
-        args.ref_img_path,
+        ref_images,
         args.gen_img_path,
         model,
         args.batch_size,

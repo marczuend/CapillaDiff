@@ -7,6 +7,8 @@
 # Paths and names
 GEN_IMG_PATH="ADD_YOUR_GENERATED_IMAGES_PATH_HERE"  # path to generated images to evaluate
 REF_IMG_PATH="ADD_YOUR_REFERENCE_IMAGES_PATH_HERE"  # path to reference images
+METADATA_FILE="ADD_YOUR_METADATA_FILE_PATH_HERE"    # path to metadata CSV file for reference images
+                                                    # if "None", all images in REF_IMG_PATH are used
 EVAL_MODEL_PATH="ADD_YOUR_EVALUATION_MODEL_PATH_HERE"
 SUB_SET_SIZE=0        # set to >0 to evaluate only on a subset of the images
 BATCH_SIZE=256               # set the batch size for evaluation
@@ -30,6 +32,7 @@ fi
 echo "================= Model Evaluation Settings ==================="
 printf "Generated Images Path: %s\n" "$GEN_IMG_PATH"
 printf "Reference Images Path: %s\n" "$REF_IMG_PATH"
+printf "Metadata File Path: %s\n" "$METADATA_FILE"
 printf "Evaluation Model Path: %s\n" "$EVAL_MODEL_PATH"
 printf "KID Subset Size: %d\n" "$KID_SUBSET_SIZE"
 printf "Batch Size: %d\n" "$BATCH_SIZE"
@@ -61,6 +64,7 @@ echo "==============================================================="
 python ../evaluation/calculate_image_quality_metrics.py \
 --ref_img_path $REF_IMG_PATH \
 --gen_img_path $GEN_IMG_PATH \
+--metadata_file $METADATA_FILE \
 --eval_model_path $EVAL_MODEL_PATH \
 --batch_size $BATCH_SIZE \
 --sub_set_size $SUB_SET_SIZE \
