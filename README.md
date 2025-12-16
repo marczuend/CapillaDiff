@@ -43,31 +43,40 @@ For the Evaluation we use the Inception V3 model.
 ## Recommended folder structure
 
 ```bash
-CapillaDiff/
-├── capilladiff/
-├── LICENSE
-├── requirments.txt
-└── README.md
+MAIN_DIR/
+├── CapillaDiff/
+│   ├── capilladiff/
+│   ├── LICENSE
+│   ├── requirments.txt
+│   └── README.md
+├── metadata/
+│   ├── metadata_CapillaDiff_training.csv
+│   ├── metadata_CapillaDiff_validation.csv
+│   └── metadata_CapillaDiff_test.csv
+├── models/
+│   ├── capilladiff_checkpoint/
+│   ├── clip-vit-large-patch14/
+│   └── ...
+├── experiments/
+│   └── all your trained models
+└── generated_images/
+    └── all your generated images
 
-models/
-├── capilladiff_checkpoint/
-├── clip-vit-large-patch14/
-...
 ```
 ## Codebase overview
 
 ```bash
-├── capilladiff/                    # Main codebase for CapillaDiff
-│   ├── diffusers/                  # Modified diffusers library
-│   ├── evaluation/                 # Image Generation & Evaluation scripts
-│   ├── scripts/                    # Training and generation scripts
-│       ├── train.sh                # Script for training CapillaDiff
-│       ├── generate_img.sh         # Script for image generation
-│       ├── evaluate_model.sh       # Script for model evaluation (FID, KID)
-│   ├── CapillaDiff_dataloader.py   # Data loading utilities
-│   ├── CapillaDiff_encoder.py      # Condition encoding utilities
-│   ├── download_models.py          # Script to download & restructure required models
-│   ├── train.py                    # Training loop for CapillaDiff
+└── capilladiff/                    # Main codebase for CapillaDiff
+    ├── diffusers/                  # Modified diffusers library
+    ├── evaluation/                 # Image Generation & Evaluation scripts
+    ├── scripts/                    # Training and generation scripts
+    │   ├── train.sh                # Script for training CapillaDiff
+    │   ├── generate_img.sh         # Script for image generation
+    │   └── evaluate_model.sh       # Script for model evaluation (FID, KID)
+    ├── CapillaDiff_dataloader.py   # Data loading utilities
+    ├── CapillaDiff_encoder.py      # Condition encoding utilities
+    ├── download_models.py          # Script to download & restructure required models
+    └── train.py                    # Training loop for CapillaDiff
 ```
 ## Training/fine-tuning
 
@@ -81,12 +90,12 @@ bash CapillaDiff/capilladiff/scripts/train.sh
 
 One folder should contain all the images for training. The raw datasets used to train CapillaDiff can be found on the LeoMed Cluster (/cluster/work/medinfmk/capillaroscopy/)
 
-The condition for each image should be provided in an extra CSV file called "metadata.csv" with the following structure:
+The condition for each image should be provided in an extra CSV file (above called metadata/metadata_CapillaDiff_XXX.csv), one for each dataset split (training, validation, test) with the following structure:
 
 ```csv
 filename,condition1,condition2,...
-img_0001.png,condition_value1,condition_value2,...
-img_0002.png,condition_value1,condition_value2,...
+img_0001.png, 1, ++,...
+img_0002.png, 0, 0,...
 ...
 ```
 
@@ -100,7 +109,7 @@ bash CapillaDiff/capilladiff/scripts/generate_img.sh
 
 ## Model Evaluation
 
-The `CapillaDiff/capilladiff/scripts/evaluate_model.sh` script is a bash script that takes the path to the pretrained checkpoint and the path to the real images for evaluation. You should set the parameters described and documented in the `CapillaDiff/capilladiff/scripts/evaluate_model.sh` and run it as follow
+The `CapillaDiff/capilladiff/scripts/evaluate_model.sh` script is a bash script that takes the path to the generated images, the path to the reference images, the path to the metadata CSV file for the reference images, and the path to the evaluation model. You should set the parameters described and documented in the `CapillaDiff/capilladiff/scripts/evaluate_model.sh` and run it as follow
 
 ```bash
 bash CapillaDiff/capilladiff/scripts/evaluate_model.sh
