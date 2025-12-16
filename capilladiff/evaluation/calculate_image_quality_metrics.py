@@ -273,6 +273,10 @@ def parse_args():
     parser.add_argument('--metadata_file',
                         required=True,
                         help="path to the metadata CSV file for which reference images inside ref_img_path to use")
+    parser.add_argument("--image_column",
+                        type=str,
+                        default="FileName",
+                        help="Name of the column of the dataset containing the path to the image.")
     parser.add_argument('--gen_img_path',
                         required=True,
                         help="directory address of the generated images")
@@ -338,8 +342,8 @@ def main():
         ref_images = find_images(args.ref_img_path)
     else:
         metadata_df = pd.read_csv(args.metadata_file)
-        valid_filenames = set(metadata_df['filename'].tolist())
-        ref_images = [os.path.join(args.ref_img_path, f) for f in valid_filenames if f in metadata_df['filename'].values]
+        valid_filenames = set(metadata_df[args.image_column].tolist())
+        ref_images = [os.path.join(args.ref_img_path, f) for f in valid_filenames if f in metadata_df[args.image_column].values]
 
     if args.use_official is True:
         # Set TORCH_HOME to the directory containing the Inception-v3 weights for official FID/KID calculation
