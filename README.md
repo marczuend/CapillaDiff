@@ -54,50 +54,69 @@ models/
 ├── clip-vit-large-patch14/
 ...
 ```
-## Codebase overview [TO BE DONE]
+## Codebase overview
 
 ```bash
-├── code
-│   ├── bash # Containing (Slurm) bash scripts for training, image generation, and testing generated images
-│   ├── cellprofiler # Containing CellProfiler pipelines used for feature extraction, and Python scripts used for feature preprocessing and analysis
-│   ├── evaluation # Containing Python scripts for image generation and distance metric calculation
-│   ├── preprocessing # Contatinig Python scripts used for data pre-processing
-│   ├── cell_cropped_benchmarking_code # Contatinig scripts used for cell-cropped image analysis 
-│   ├── required_file # Contatining files required for perturbation encoding of all datasets (perturbation encoded vectors)
-│   ├── perturbation_encoder.py # Implementation of perturbation encoding class as part of the MorphoDiff pipeline
-│   └── train_text_to_image_cell_painting.py # The modified training script of Stable Diffusion
+├── capilladiff/                    # Main codebase for CapillaDiff
+│   ├── diffusers/                  # Modified diffusers library
+│   ├── evaluation/                 # Image Generation & Evaluation scripts
+│   ├── scripts/                    # Training and generation scripts
+│       ├── train.sh                # Script for training CapillaDiff
+│       ├── generate_img.sh         # Script for image generation
+│       ├── evaluate_model.sh       # Script for model evaluation (FID, KID)
+│   ├── CapillaDiff_dataloader.py   # Data loading utilities
+│   ├── CapillaDiff_encoder.py      # Condition encoding utilities
+│   ├── download_models.py          # Script to download & restructure required models
+│   ├── train.py                    # Training loop for CapillaDiff
 ```
-## Training/fine-tuning  (TO BE DONE)
+## Training/fine-tuning
 
-The `scripts/train.sh` provides commands for defining parameters required for training CapillaDiff and Stable Diffusion, with description of each parameter provided in the bash script. After defining the parameters of the training script, run the following for submitting the training job using Slurm.
+The `CapillaDiff/capilladiff/scripts/train.sh` provides commands for defining parameters required for training CapillaDiff, with description of each parameter provided in the bash script. After defining the parameters of the training script, run the following for submitting the training job.
 
 ```bash
-sbatch scripts/train.sh
+bash CapillaDiff/capilladiff/scripts/train.sh
 ```
-
-After the training is completed for the specified number of steps, the `scripts/train.sh` automatically resubmits the job and resumes training from the last checkpoint. You can set the total_steps parameter to not train more than a specific number of steps, or comment the `scontrol requeue $SLURM_JOB_ID` line that resubmits the job once it is finished.
 
 ## Data Preparation
-### TO BE DONE!!!!!
 
-Data folder contents must follow the structure described in [https://huggingface.co/docs/datasets/image_dataset#imagefolder](https://huggingface.co/docs/datasets/image_dataset#imagefolder). In particular, a `metadata.jsonl` file must exist to provide the perturbation id for the images. The perturbation ids used in CapillaDiff analysis are provided in the required_file/ folder.
+One folder should contain all the images for training. The raw datasets used to train CapillaDiff can be found on the LeoMed Cluster (/cluster/work/medinfmk/capillaroscopy/)
 
-### Download Dataset  (TO BE DONE)
+The condition for each image should be provided in an extra CSV file called "metadata.csv" with the following structure:
 
-The raw datasets used to train CapillaDiff can be found on the LeoMed Cluster (/cluster/work/medinfmk/capillaroscopy/)
+```csv
+filename,condition1,condition2,...
+img_0001.png,condition_value1,condition_value2,...
+img_0002.png,condition_value1,condition_value2,...
+...
+```
 
-## Condition Encoding  (TO BE DONE)
+## Image Generation
 
-To be determined
-1. Features like number of bloodcells, etc...
-2. Clinical Text encoding using CLIP to encode
-
-## Image Generation (TO BE DONE)
-
-The `scripts/generate_img.sh` script is a Slurm based bash script that takes the path to the pretrained checkpoint, a file of condition list, the number of images to generate per condition, and an address to save the images of each condition configuration in a separate folder. You should set the parameters described and documented in the `scripts/generate_img.sh` and run it as follow
+The `CapillaDiff/capilladiff/scripts/generate_img.sh` script is a bash script that takes the path to the pretrained checkpoint, the number of images to generate per condition, and an address to save the images of each condition configuration in a separate folder. You should set the parameters described and documented in the `CapillaDiff/capilladiff/scripts/generate_img.sh` and run it as follow
 
 ```bash
-sh scripts/generate_img.sh
+bash CapillaDiff/capilladiff/scripts/generate_img.sh
 ```
+
+## Model Evaluation
+
+The `CapillaDiff/capilladiff/scripts/evaluate_model.sh` script is a bash script that takes the path to the pretrained checkpoint and the path to the real images for evaluation. You should set the parameters described and documented in the `CapillaDiff/capilladiff/scripts/evaluate_model.sh` and run it as follow
+
+```bash
+bash CapillaDiff/capilladiff/scripts/evaluate_model.sh
+```
+
+## Citation
+This respository is based on the work of MorphoDiff from Navidi et al. If you use this codebase please cite the following paper:
+
+```
+@inproceedings{
+    navidi2025morphodiff,
+    title={MorphoDiff: Cellular Morphology Painting with Diffusion Models},
+    author={Zeinab Navidi and Jun Ma and Esteban Miglietta and Le Liu and Anne E Carpenter and Beth A Cimini and Benjamin Haibe-Kains and BO WANG},
+    booktitle={The Thirteenth International Conference on Learning Representations},
+    year={2025},
+    url={https://openreview.net/forum?id=PstM8YfhvI}
 }
 ```
+
