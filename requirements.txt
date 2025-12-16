@@ -1,7 +1,6 @@
 torch
 torchvision
 transformers
-diffusers
 datasets
 accelerate
 huggingface_hub
