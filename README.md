@@ -1,4 +1,4 @@
-<img src="CapillaDiff_logo.png" alt="Project Logo" width="200">
+<img src="CapillaDiff_logo.png" alt="Project Logo" width="500">
 
 
 
