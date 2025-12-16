@@ -25,17 +25,17 @@ export MIXED_PRECISION="fp16"      # set to "fp16" or "bf16" for mixed precision
 export SCALE_MIN=0.9               # set the minimum scale for random resized cropping during training (between 0 and 1)
 
 ## set path to save the experiment outputs (models, logs, tmp files, etc.)
-export SAVE_DIR="/cluster/work/medinfmk/capillaroscopy/CapillaDiff"   # if "None", the home directory will be used
+export SAVE_DIR="ADD_YOUR_OUTPUT_DIRECTORY_PATH_HERE"   # if "None", the home directory will be used
 
 ## set the path to the training data directory. Folder contents must follow the structure described in
 ## https://github.com/marczuend/CapillaDiff/blob/main/README.md#data-preparation
-export IMG_DIR="/cluster/work/medinfmk/capillaroscopy/content/images"
-export METADATA_FILE="/cluster/customapps/medinfmk/mazuend/CapillaDiff/metadata/metadata_CapillaDiff_training.csv"
+export IMG_DIR="ADD_YOUR_IMAGE_DATA_DIRECTORY_PATH_HERE"
+export METADATA_FILE="ADD_YOUR_METADATA_FILE_PATH_HERE.csv"
 
 
 ## set the path to the pretrained model, which could be either pretrained Stable Diffusion, or a pretrained CapillaDiff model
-export MODEL_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/CapillaDiff_base"
-export CLIP_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/clip-vit-large-patch14"
+export MODEL_PATH="ADD_YOUR_PRETRAINED_MODEL_PATH_HERE"
+export CLIP_PATH="ADD_YOUR_CLIP_MODEL_PATH_HERE"
 
 ##################################################################################
 ######################### END OF VARIABLE SETTINGS ###############################
@@ -176,18 +176,18 @@ get_column_index() {
 is_CUDA_AVAILABLE=$(python -c 'import torch; print(torch.cuda.is_available())')
 
 echo "================= Setup Info =================================="
-printf "%-20s : %s\n" "Experiment name" "$EXPERIMENT"
-printf "%-20s : %s\n" "Relevant columns" "$RELEVANT_COLUMNS"
-printf "%-20s : %s\n" "Model directory" "$MODEL_PATH"
+printf "%-30s : %s\n" "Experiment name" "$EXPERIMENT"
+printf "%-30s : %s\n" "Relevant columns" "$RELEVANT_COLUMNS"
+printf "%-30s : %s\n" "Model directory" "$MODEL_PATH"
 echo "================= Data Info ==================================="
-printf "%-20s : %s\n" "Image dir" "$IMG_DIR"
-printf "%-20s : %s\n" "Metadata file" "$METADATA_FILE"
-printf "%-20s : %s\n" "Output directory" "$OUTPUT_DIR"
-printf "%-20s : %s\n" "Checkpoint directory" "$CHECKPOINT_DIR"
-printf "%-20s : %s\n" "Temporary directory" "$TMPDIR"
+printf "%-30s : %s\n" "Image dir" "$IMG_DIR"
+printf "%-30s : %s\n" "Metadata file" "$METADATA_FILE"
+printf "%-30s : %s\n" "Output directory" "$OUTPUT_DIR"
+printf "%-30s : %s\n" "Checkpoint directory" "$CHECKPOINT_DIR"
+printf "%-30s : %s\n" "Temporary directory" "$TMPDIR"
 echo "================= System Info ================================="
-printf "%-20s : %s\n" "CUDA available" "$is_CUDA_AVAILABLE"
-printf "%-20s : %s\n" "Python version" "$(python -V 2>&1)"
+printf "%-30s : %s\n" "CUDA available" "$is_CUDA_AVAILABLE"
+printf "%-30s : %s\n" "Python version" "$(python -V 2>&1)"
 echo "================= Training Info ==============================="
 printf "%-30s : %s\n" "Batch size" "$BATCH_SIZE"
 printf "%-30s : %s\n" "Learning rate" "$LEARNING_RATE"
@@ -197,14 +197,10 @@ if [ "$MAX_TRAIN_STEPS" = "None" ]; then
 else
     printf "%-30s : %s\n" "Max training steps" "$MAX_TRAIN_STEPS"
 fi
-#printf "%-30s : %s\n" "Validation epochs" "$VALIDATION_EPOCHS"
-#printf "%-30s : %s\n" "Checkpointing steps" "$CHECKPOINTING_STEPS"
-if [ "$USE_CFG" -eq 1 ]; then
-    printf "%-30s : %s\n" "Using CFG during training" "Yes"
-    printf "%-30s : %s\n" "CFG training probability" "$CFG_TRAINING_PROB"
-else
-    printf "%-30s : %s\n" "Using CFG during training" "No"
-fi
+
+printf "%-30s : %s\n" "Using CFG during training" "Yes"
+printf "%-30s : %s\n" "CFG training probability" "$CFG_TRAINING_PROB"
+
 echo "================= Label Augmentation ==========================="
 if [ "$USE_TEXT_MODE" == "None" ] || [ "$USE_TEXT_MODE" == "simple" ]; then
     if [ "$USE_TEXT_MODE" == "simple" ]; then

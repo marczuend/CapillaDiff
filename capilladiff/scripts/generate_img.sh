@@ -1,15 +1,11 @@
 #!/bin/bash
 
-# Ensure script uses its own directory as working directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
-
 ##################################################################################
 ############ NEEDED VARIABLES TO SET BEFORE RUNNING THE SCRIPT  ##################
 ##################################################################################
 
 # Paths and names
-MODEL_PATH="/cluster/work/medinfmk/capillaroscopy/CapillaDiff/experiments/textmode_simple_level_encoding_cfg_on_BERT_giant_capillaries_run_1/checkpoints/checkpoint-10005"
+MODEL_PATH="ADD_YOUR_MODEL_CHECKPOINT_PATH_HERE"  # path to the model checkpoint to use for image generation
 EXPERIMENT="auto"      # if "auto", the name of the used model checkpoint will be used
 METADATA_FILE="auto"  # if "None", the metadata file used during training will be used
 
@@ -27,6 +23,10 @@ MODEL_TYPE="conditional" # set "conditional" for Conditional SD, and "naive" for
 ##################################################################################
 ######################### END OF VARIABLE SETTINGS ###############################
 ##################################################################################
+
+# Ensure script uses its own directory as working directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 # If a first argument is provided, overwrite the default
 if [ $# -ge 1 ]; then

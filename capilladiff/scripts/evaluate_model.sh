@@ -1,17 +1,13 @@
 #!/bin/bash
 
-# Ensure script uses its own directory as working directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
-
 ##################################################################################
 ############ NEEDED VARIABLES TO SET BEFORE RUNNING THE SCRIPT  ##################
 ##################################################################################
 
 # Paths and names
-GEN_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/synthetic_single/evaluation_fm_sz128"  # path to generated images to evaluate
-REF_IMG_PATH="/cluster/work/medinfmk/capillaroscopy/content/images"  # path to reference images
-EVAL_MODEL_PATH="/cluster/customapps/medinfmk/mazuend/CapillaDiff/models/inception_v3"
+GEN_IMG_PATH="ADD_YOUR_GENERATED_IMAGES_PATH_HERE"  # path to generated images to evaluate
+REF_IMG_PATH="ADD_YOUR_REFERENCE_IMAGES_PATH_HERE"  # path to reference images
+EVAL_MODEL_PATH="ADD_YOUR_EVALUATION_MODEL_PATH_HERE"
 SUB_SET_SIZE=0        # set to >0 to evaluate only on a subset of the images
 BATCH_SIZE=256               # set the batch size for evaluation
 KID_SUBSET_SIZE=1000         # subset size for KID calculation
@@ -20,6 +16,10 @@ SEED=42                     # set to an integer for a fixed seed, or "random" fo
 ##################################################################################
 ######################### END OF VARIABLE SETTINGS ###############################
 ##################################################################################
+
+# Ensure script uses its own directory as working directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 # If a first argument is provided, overwrite the GEN_IMG_PATH default
 if [ $# -ge 1 ]; then
