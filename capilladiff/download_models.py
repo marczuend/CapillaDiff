@@ -50,13 +50,11 @@ def download_inception(save_dir, folder_name="inception_v3"):
     and saves them to the specified directory.
     """
 
-    inception = models.inception_v3(pretrained=True)
-    inception.fc = torch.nn.Identity()  # pool3 features
-    inception.eval()
-
-    weights_enum = models.Inception_V3_Weights.DEFAULT
+    from torchvision.models import Inception_V3_Weights
+    weights = Inception_V3_Weights.DEFAULT
+    
     # Download the weights for custom FID/KID calculation
-    state_dict = torch.hub.load_state_dict_from_url(weights_enum.url, progress=True)
+    state_dict = torch.hub.load_state_dict_from_url(weights.url, progress=True)
 
     save_dir = os.path.join(save_dir, folder_name)
     file_name = "inception_v3.pth"

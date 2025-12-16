@@ -28,7 +28,7 @@ accelerate config
 
 CapillaDiff requires several pretrained components to function correctly. You must provide paths to these models when running the pipeline. To download the Basemodel as well as the Text Encoders and Evaluation models use the provided download script:
 ```bash
-python3 CapillaDiff/download_models.py
+python3 CapillaDiff/capilladiff/download_models.py
 ```
 
 ### 1. Stable Diffusion Base Model
