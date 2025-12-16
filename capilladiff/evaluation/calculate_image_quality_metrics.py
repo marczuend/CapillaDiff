@@ -323,7 +323,7 @@ def main():
 
     if args.use_official is True:
         # Set TORCH_HOME to the directory containing the Inception-v3 weights for official FID/KID calculation
-        torch_temp_dir = os.path.dirname(os.path.abspath(args.eval_model_path))
+        torch_temp_dir = os.path.abspath(args.eval_model_path)
         torch_temp_dir = os.path.join(torch_temp_dir, "torchmetrics")
 
         global ORG_TORCH_HOME
