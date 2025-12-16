@@ -1,5 +1,5 @@
 <img src="CapillaDiff_logo.png" alt="Project Logo" width="500">
-Logo generated with [ChatGPT](https://chatgpt.com)
+<small><span style="color:gray;">Logo generated with <a href="https://chatgpt.com">ChatGPT</a></span></small>
 
 
 This is the official repository of CapillaDiff, a diffusion based generative pipeline to predict high-resolution capillaroscopy images with different conditions.
