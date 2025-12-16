@@ -51,7 +51,7 @@ echo "==============================================================="
 
 
 # Ask user if we should proceed
-#read -p "Do you want to proceed? (y/n) " -n 1 -r
+read -p "Do you want to proceed? (y/n) " -n 1 -r
 echo    # move to a new line
 echo "==============================================================="
 
