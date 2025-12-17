@@ -619,10 +619,6 @@ def main():
 
     args = parse_args()
 
-    print(args.text_mode is None)
-    print("use_cfg: ", args.use_cfg is True)
-    exit()
-
     if args.checkpointing_dir is None:
         args.checkpointing_dir = os.path.join(args.output_dir, "checkpoints")
 
