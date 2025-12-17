@@ -198,11 +198,11 @@ else
     printf "%-30s : %s\n" "Max training steps" "$MAX_TRAIN_STEPS"
 fi
 
-printf "%-30s : %s\n" "Using CFG during training" "Yes"
+printf "%-30s : %s\n" "Using CFG during training" "$USE_CFG"
 printf "%-30s : %s\n" "CFG training probability" "$CFG_TRAINING_PROB"
 
 echo "================= Label Augmentation ==========================="
-if [ "$USE_TEXT_MODE" == "None" ] || [ "$USE_TEXT_MODE" == "simple" ]; then
+if [ "$USE_TEXT_MODE" == "None" ] || [ "$USE_TEXT_MODE" == "simple" ] || [$USE_TEXT_MODE==None]; then
     if [ "$USE_TEXT_MODE" == "simple" ]; then
         printf "%-30s : %s\n" "Use text mode encoding" "$USE_TEXT_MODE"
     fi

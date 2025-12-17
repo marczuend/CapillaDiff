@@ -84,7 +84,6 @@ def str2int(v):
     Args:
         v (str): string to convert to integer"""
 
-    # either use max_train_steps or num_train_epochs to determine total training steps
     try:
         if v == "None":
             v = None
@@ -105,6 +104,20 @@ def json2list(v):
         if v != "all":
             v = json.loads(v)
     if v in ("all", None):
+        v = None
+
+    return v
+
+def str2str(v):
+    """Convert string to string.
+
+    Args:
+        v (str): string"""
+
+    try:
+        if v == "None":
+            v = None
+    except:
         v = None
 
     return v
@@ -173,7 +186,7 @@ def parse_args() -> argparse.Namespace:
         help="Whether to convert the conditions to boolean embeddings."
     )
     parser.add_argument("--text_mode",
-        type=str,
+        type=str2str,
         default=None,
         help="The text mode to use for encoding conditions."
     )
@@ -516,7 +529,7 @@ def log_validation(args, accelerator, weight_dtype, step, ckpt_path):
 
     # check if text mode is used
     clip = None
-    if args.text_mode != "None":
+    if args.text_mode is not None:
         # load clip model
         from transformers import CLIPTokenizer, CLIPTextModel
         clip_tokenizer = CLIPTokenizer.from_pretrained(args.clip_path)
@@ -605,6 +618,10 @@ def encode_prompt(identifier, args, clip=None):
 def main():
 
     args = parse_args()
+
+    print(args.text_mode is None)
+    print("use_cfg: ", args.use_cfg is True)
+    exit()
 
     if args.checkpointing_dir is None:
         args.checkpointing_dir = os.path.join(args.output_dir, "checkpoints")
@@ -802,7 +819,7 @@ def main():
 
         # check if text mode is used
     clip = None
-    if args.text_mode != "None" and args.text_mode is not None:
+    if args.text_mode is not None:
         from transformers import AutoConfig
         config = AutoConfig.from_pretrained(args.clip_path)
         model_type = config.model_type
