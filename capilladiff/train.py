@@ -777,10 +777,9 @@ def main():
             transforms.RandomResizedCrop(size=512, scale=(scale_min,1.0)),
             transforms.RandomHorizontalFlip() if args.random_flip else transforms.Lambda(lambda x: x),
             transforms.ToTensor(),
-            transforms.Normalize([0.67212146, 0.63119322, 0.62765121], # from Adriana, 08.12.2025
-                                 [0.08998639, 0.11100586, 0.12605950])
-            #transforms.Normalize([0.5, 0.5, 0.5],
-            #                     [0.5, 0.5, 0.5])
+            #transforms.Normalize([0.67212146, 0.63119322, 0.62765121], # from Adriana, 08.12.2025
+            #                     [0.08998639, 0.11100586, 0.12605950])
+            transforms.Normalize([0.5], [0.5])])     # based on MorphoDiff & Rombach et al. (Stabel Diffusion paper)
         ]
     )
 
